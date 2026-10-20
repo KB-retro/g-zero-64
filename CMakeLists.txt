@@ -34,6 +34,8 @@ if(ANDROID)
     # GLES 3 renderer; ImGui's GL backend needs the matching define (libultraship sets it on Linux).
     set(USE_OPENGLES ON CACHE BOOL "" FORCE)
     add_compile_definitions(IMGUI_IMPL_OPENGL_ES3)
+    # GLES 3.0 has no border clamp (3.2 only); the post-process passes fall back to edge clamp.
+    add_compile_definitions(GL_CLAMP_TO_BORDER=GL_CLAMP_TO_EDGE)
 endif()
 add_subdirectory(libultraship)     # runtime + Fast3D renderer
 add_subdirectory(port)             # game glue + decomp sources + G-Diffuser executable
