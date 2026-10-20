@@ -61,6 +61,11 @@ android {
             cmake {
                 arguments += listOf(
                     "-DANDROID_STL=c++_static",
+                    // Release: optimized, and without the desktop developer gates.
+                    "-DCMAKE_BUILD_TYPE=Release",
+                    // SDLActivity loads libSDL2.so before libmain.so.
+                    "-DSDL_SHARED=ON",
+                    "-DSDL_STATIC=OFF",
                     "-DFETCHCONTENT_SOURCE_DIR_SDL2=${file("../SDL").absolutePath}",
                     "-DGDX_ANDROID_ASSETS_DIR=${nativeAssets.get().asFile.absolutePath}",
                     "-DGDX_ANDROID_JNILIBS_DIR=${nativeJniLibs.get().asFile.absolutePath}")
