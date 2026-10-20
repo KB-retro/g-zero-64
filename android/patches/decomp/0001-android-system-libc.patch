@@ -1,0 +1,87 @@
+diff --git a/include/global.h b/include/global.h
+index 84dde67..2f780d3 100644
+--- a/include/global.h
++++ b/include/global.h
+@@ -17,7 +17,7 @@
+ #ifndef PORT
+ #define GDX_CK(x)
+ #else
+-#ifdef __APPLE__
++#if defined(__APPLE__) || defined(__ANDROID__)
+ /* macOS: size_t is unsigned long on LP64 Darwin, so the unsigned long long declaration below
+    conflicts with the SDK's. __SIZE_TYPE__ is the compiler's own size_t, so this matches the SDK
+    without including a system header (which would collide with the decomp's libc/stdint.h). When
+diff --git a/include/libc/stdbool.h b/include/libc/stdbool.h
+index 42e182f..e1210e5 100644
+--- a/include/libc/stdbool.h
++++ b/include/libc/stdbool.h
+@@ -2,7 +2,7 @@
+ #define LIBC_STDBOOL_H
+ 
+ /* macOS: the SDK headers conflict with these N64 libc replacements, so use the system ones. */
+-#if defined(PORT) && defined(__APPLE__)
++#if defined(PORT) && (defined(__APPLE__) || defined(__ANDROID__))
+ #include <stdbool.h>
+ #else
+ #include "PR/ultratypes.h"
+diff --git a/include/libc/stddef.h b/include/libc/stddef.h
+index 6a9ab27..9eecbc7 100644
+--- a/include/libc/stddef.h
++++ b/include/libc/stddef.h
+@@ -2,7 +2,7 @@
+ #define LIBC_STDDEF_H
+ 
+ /* macOS: the SDK headers conflict with these N64 libc replacements, so use the system ones. */
+-#if defined(PORT) && defined(__APPLE__)
++#if defined(PORT) && (defined(__APPLE__) || defined(__ANDROID__))
+ #include <stddef.h>
+ #else
+ #include "PR/ultratypes.h"
+diff --git a/include/libc/stdint.h b/include/libc/stdint.h
+index 490bbca..e03c39e 100644
+--- a/include/libc/stdint.h
++++ b/include/libc/stdint.h
+@@ -20,7 +20,7 @@ typedef u32 uintptr_t;
+ 
+ /* macOS: the libc/string.h redirect pulls in the SDK's <string.h>, which already defines these
+  * limits with the same values. Skip the decomp's copies there instead of redefining them. */
+-#if !(defined(PORT) && defined(__APPLE__) && defined(INT8_MIN))
++#if !(defined(PORT) && (defined(__APPLE__) || defined(__ANDROID__)) && defined(INT8_MIN))
+ #define INT8_MIN    (-0x80)
+ #define INT16_MIN   (-0x8000)
+ #define INT32_MIN   (-0x80000000)
+@@ -37,7 +37,7 @@ typedef u32 uintptr_t;
+ #define UINT64_MAX  0xFFFFFFFFFFFFFFFF
+ #endif
+ 
+-#if defined(PORT) && defined(__APPLE__) && defined(INTPTR_MAX)
++#if defined(PORT) && (defined(__APPLE__) || defined(__ANDROID__)) && defined(INTPTR_MAX)
+ /* SDK already defined them (see above). */
+ #elif defined(PORT)
+ #define INTPTR_MIN  (-0x8000000000000000)
+diff --git a/include/libc/stdlib.h b/include/libc/stdlib.h
+index 93a40b9..3b8d547 100644
+--- a/include/libc/stdlib.h
++++ b/include/libc/stdlib.h
+@@ -2,7 +2,7 @@
+ #define LIBC_STDLIB_H
+ 
+ /* macOS: the SDK headers conflict with these N64 libc replacements, so use the system ones. */
+-#if defined(PORT) && defined(__APPLE__)
++#if defined(PORT) && (defined(__APPLE__) || defined(__ANDROID__))
+ #include <stdlib.h>
+ #else
+ #include "libc/stddef.h"
+diff --git a/include/libc/string.h b/include/libc/string.h
+index 7eb085e..c08205a 100644
+--- a/include/libc/string.h
++++ b/include/libc/string.h
+@@ -2,7 +2,7 @@
+ #define LIBC_STRING_H
+ 
+ /* macOS: the SDK headers conflict with these N64 libc replacements, so use the system ones. */
+-#if defined(PORT) && defined(__APPLE__)
++#if defined(PORT) && (defined(__APPLE__) || defined(__ANDROID__))
+ #include <string.h>
+ #else
+ #include "libc/stddef.h"
