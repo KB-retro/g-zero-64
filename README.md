@@ -1,3 +1,19 @@
+# G-Zero 64 — F-Zero X para Android
+
+**G-Zero 64** es un port para Android de [G-Diffuser](https://github.com/Zorkats/G-Diffuser), hecho por
+[KB-retro](https://github.com/KB-retro) / Patrulla Retro. Todo el mérito del port nativo es de
+Zorkats y de los proyectos en los que se basa (créditos completos más abajo, en el README original).
+
+- Necesitas tus propias copias: la ROM de F-Zero X (EE. UU.), el disco del Expansion Kit traducido
+  (`.ndd`) y la IPL del 64DD. El APK no incluye datos del juego.
+- En el lanzador: **Cambiar carpeta** → elige la carpeta con esos tres archivos → **Jugar**.
+- El APK se genera en GitHub Actions: *Actions → Android APK → Run workflow*.
+- El código de Android está en `android/` (lanzador, actividad del juego y proyecto Gradle).
+
+Licencia: MIT, igual que G-Diffuser (ver `LICENSE`, `THIRD_PARTY_NOTICES.md` y `LICENSES/`).
+
+---
+
 <div align="center">
 
 <img src="assets/branding/gdiffuser-logo.png" alt="G-Diffuser" width="640">

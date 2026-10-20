@@ -30,6 +30,11 @@ add_compile_options(
 )
 
 # --- Components ---------------------------------------------------------------
+if(ANDROID)
+    # GLES 3 renderer; ImGui's GL backend needs the matching define (libultraship sets it on Linux).
+    set(USE_OPENGLES ON CACHE BOOL "" FORCE)
+    add_compile_definitions(IMGUI_IMPL_OPENGL_ES3)
+endif()
 add_subdirectory(libultraship)     # runtime + Fast3D renderer
 add_subdirectory(port)             # game glue + decomp sources + G-Diffuser executable
 #

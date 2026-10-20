@@ -8,6 +8,7 @@
 // in the argv they build and the stdout count-parse they use.
 
 #include "gdx_dump_launch.h"
+#include "gdx_self_exe.h"
 #include "port_log.h"
 
 #include <algorithm>
@@ -64,6 +65,12 @@ constexpr const char* kExtractBinaryName = "gdx-extract.exe";
 #else
 constexpr const char* kExtractBinaryName = "gdx-extract";
 #endif
+
+// The packaged extractor beside the executable, or the Android launcher's GDX_EXTRACT_BIN.
+fs::path extractBinaryIn(const fs::path& dir) {
+    const char* override = gdx_extract_binary_override();
+    return override != nullptr ? fs::path(override) : dir / kExtractBinaryName;
+}
 constexpr const char* kRecipesDirName = "decomp-recipes";                 // --recipes
 constexpr const char* kEkSliceManifestName = "ek_slice_manifest.txt";     // --manifest (under recipes)
 constexpr const char* kCartArchiveName = "fzerox.o2r";                    // real cart archive (data dir)
@@ -95,7 +102,7 @@ fs::path exeDir() {
         }
     }
 #else
-    ssize_t rl = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    ssize_t rl = gdx_readlink_self_exe(buf, sizeof(buf) - 1);
     if (rl > 0) {
         buf[rl] = '\0';
         return fs::path(buf).parent_path();
@@ -248,7 +255,7 @@ bool isDir(const fs::path& p) {
 // gdx-extract.exe next to the game exe — same convention as port/gdx_extract_launch.cpp (exeDir /
 // kExtractBinaryName). Returns "" when absent (the Python fallback then takes over).
 std::string findExtractBinary() {
-    fs::path cand = exeDir() / kExtractBinaryName;
+    fs::path cand = extractBinaryIn(exeDir());
     return isRegularFile(cand) ? cand.string() : std::string();
 }
 

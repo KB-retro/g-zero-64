@@ -6,6 +6,7 @@
 // own gdx_port_logf and touches no LUS state.
 
 #include "gdx_firstboot.h"
+#include "gdx_self_exe.h"
 #include "gdx_extract_launch.h" // GdxExtractFileSha256 / GdxExtractRecordManagedDisk
 #include "port_log.h"
 
@@ -167,7 +168,7 @@ fs::path executableDir(const char* argv0) {
     }
 #else
     char buf[4096];
-    ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    ssize_t n = gdx_readlink_self_exe(buf, sizeof(buf) - 1);
     if (n > 0) {
         buf[n] = '\0';
         fs::path p(buf);

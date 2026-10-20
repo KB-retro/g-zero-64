@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">G-Zero 64</string>
+    <string name="launcher_logo" translatable="false">G-Zero 64</string>
+    <string name="launcher_platform">F-ZERO X + EXPANSION KIT / ANDROID</string>
+    <string name="launcher_title">ELIGE TUS ARCHIVOS</string>
+    <string name="launcher_description">Elige la carpeta con la ROM de F-Zero X (EE. UU.), el disco del Expansion Kit traducido (.ndd) y la IPL del 64DD.</string>
+    <string name="launcher_choose">ELEGIR CARPETA  ›</string>
+    <string name="launcher_change_folder">CAMBIAR CARPETA</string>
+    <string name="launcher_play">JUGAR  ›</string>
+    <string name="launcher_settings">Ajustes</string>
+    <string name="launcher_checking">Copiando los archivos…</string>
+    <string name="launcher_unreadable">No se pudo leer la carpeta. Vuelve a elegirla.</string>
+    <string name="launcher_missing">Faltan archivos:\n%1$s</string>
+    <string name="file_rom">• ROM de F-Zero X (EE. UU. o Europa)</string>
+    <string name="file_rom_japanese">• ROM de F-Zero X: la japonesa no es compatible, usa la de EE. UU.</string>
+    <string name="file_disk">• Disco del Expansion Kit traducido (.ndd)</string>
+    <string name="file_disk_japanese">• Disco del Expansion Kit: el japonés no es compatible, usa el traducido</string>
+    <string name="file_ipl">• IPL del 64DD</string>
+    <string name="launcher_ready_title">LISTO PARA CORRER</string>
+    <string name="launcher_ready_description">Los archivos están copiados en la app. La primera partida prepara los gráficos y tarda un poco más.</string>
+    <string name="launcher_ready_status">Pulsa Jugar.</string>
+    <string name="launcher_auto_starting">Iniciando… Toca la pantalla o pulsa un botón para cancelar.</string>
+    <string name="launcher_restarting">Reiniciando…</string>
+    <string name="launcher_runtime_failed">No se pudieron preparar los archivos de la app. Comprueba el espacio libre.</string>
+    <string name="launcher_credits">&lt;a href="https://github.com/KB-retro/g-zero-64/commit/%2$s"&gt;Versión %1$s&lt;/a&gt;　/　&lt;a href="https://github.com/KB-retro/g-zero-64"&gt;Repositorio&lt;/a&gt;　/　&lt;a href="https://github.com/KB-retro"&gt;KB-retro&lt;/a&gt;</string>
+    <string name="settings_title">AJUSTES</string>
+    <string name="settings_auto_start">Inicio automático</string>
+    <string name="settings_back">Volver</string>
+    <string name="port_credits_body">G-Zero 64 de &lt;a href="https://github.com/KB-retro"&gt;KB-retro&lt;/a&gt; · &lt;a href="https://github.com/KB-retro/g-zero-64/commit/%2$s"&gt;versión %1$s&lt;/a&gt;&lt;br&gt;&lt;br&gt;Port para Android basado en &lt;a href="https://github.com/Zorkats/G-Diffuser"&gt;G-Diffuser&lt;/a&gt; de Zorkats (licencia MIT),&lt;br&gt;sobre la decompilación &lt;a href="https://github.com/inspectredc/fzerox"&gt;inspectredc/fzerox&lt;/a&gt;, &lt;a href="https://github.com/Kenix3/libultraship"&gt;libultraship&lt;/a&gt; y &lt;a href="https://github.com/HarbourMasters/Torch"&gt;Torch&lt;/a&gt;.&lt;br&gt;No incluye datos del juego: necesitas tus propias copias.</string>
+    <string name="quick_title">MENÚ RÁPIDO</string>
+    <string name="quick_version">G-Zero 64 · versión %1$s</string>
+    <string name="quick_resume">Continuar</string>
+    <string name="quick_exit">Salir</string>
+</resources>

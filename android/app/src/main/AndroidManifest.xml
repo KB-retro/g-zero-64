@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+    <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <!-- The port keeps 32-bit views of host pointers; tagged heap pointers would break them. -->
+    <application android:label="@string/app_name" android:theme="@android:style/Theme.Material.NoActionBar"
+        android:appCategory="game"
+        android:localeConfig="@xml/locales_config"
+        android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"
+        android:allowNativeHeapPointerTagging="false"
+        android:extractNativeLibs="true"
+        android:allowBackup="false" android:hasFragileUserData="true" android:enableOnBackInvokedCallback="false">
+        <activity android:name=".LauncherActivity" android:exported="true"
+            android:screenOrientation="sensorLandscape">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".SettingsActivity" android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+        <activity android:name=".GameActivity" android:exported="false" android:process=":game"
+            android:screenOrientation="sensorLandscape" android:launchMode="singleTask"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|navigation|density"
+            android:hardwareAccelerated="true" />
+    </application>
+</manifest>

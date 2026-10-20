@@ -1,4 +1,5 @@
 #include "rom_buffer.h"
+#include "gdx_self_exe.h"
 #include "port_log.h"
 #ifdef __APPLE__
 #include "gdx_macos_ui.h"
@@ -199,7 +200,7 @@ static void load_rom_next_to_exe(void) {
         }
     }
 #else
-    ssize_t n = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+    ssize_t n = gdx_readlink_self_exe(exePath, sizeof(exePath) - 1);
     if (n <= 0) {
         return;
     }

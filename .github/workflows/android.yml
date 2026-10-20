@@ -1,0 +1,104 @@
+name: Android APK
+
+# Run by hand (Actions -> Android APK -> Run workflow) to get a signed APK.
+# Pushes to ci/* branches build too, only to check that the port still compiles.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'ci/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Python packages for the asset generators
+        run: python -m pip install --quiet pyyaml pillow
+
+      - name: Install Android SDK packages
+        run: |
+          SDKM=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          [ -x "$SDKM" ] || { echo "::error::No sdkmanager under $ANDROID_HOME/cmdline-tools: $(ls "$ANDROID_HOME" | tr '\n' ' ')"; exit 1; }
+          (yes || true) | "$SDKM" --licenses > /dev/null 2>&1 || true
+          "$SDKM" --list > "$RUNNER_TEMP/sdk-list.txt" 2>&1 || true
+          # Prefer the exact pinned packages; report what exists when one is missing.
+          pick() {
+            if grep -q "^ *$1 " "$RUNNER_TEMP/sdk-list.txt"; then echo "$1"; return; fi
+            local found
+            found=$(grep -o "^ *$2[^ ]*" "$RUNNER_TEMP/sdk-list.txt" | tr -d ' ' | sort -uV | tail -1)
+            echo "::warning::$1 not offered; available: $(grep -o "^ *$2[^ ]*" "$RUNNER_TEMP/sdk-list.txt" | tr -d ' ' | sort -uV | tr '\n' ' ')" >&2
+            echo "$found"
+          }
+          PLATFORM=$(pick "platforms;android-37.0" "platforms;android-37")
+          NDK=$(pick "ndk;30.0.16248370" "ndk;30")
+          CMAKE=$(pick "cmake;4.1.2" "cmake;4")
+          echo "Installing $PLATFORM $NDK $CMAKE"
+          if ! "$SDKM" --install "$PLATFORM" "$NDK" "$CMAKE" > "$RUNNER_TEMP/sdk-install.txt" 2>&1; then
+            echo "::error::sdkmanager failed: $(tail -c 1500 "$RUNNER_TEMP/sdk-install.txt" | tr '\n' ' ')"
+            exit 1
+          fi
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      - name: Signing key
+        env:
+          GZ64_KEYSTORE_B64: ${{ secrets.GZ64_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$GZ64_KEYSTORE_B64" ]; then
+            echo "::warning::No GZ64_KEYSTORE_B64 secret: the APK gets a debug key and cannot update the previous install."
+            exit 0
+          fi
+          echo "$GZ64_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/gzero64.jks"
+          echo "GZ64_KEYSTORE=$RUNNER_TEMP/gzero64.jks" >> "$GITHUB_ENV"
+
+      - name: Build
+        env:
+          GZ64_KEYSTORE_PASSWORD: ${{ secrets.GZ64_KEYSTORE_PASSWORD }}
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Report build errors
+        if: failure()
+        run: |
+          [ -f "$RUNNER_TEMP/build.log" ] || exit 0
+          # Annotations are readable without the full log.
+          grep -nE "error:|FAILED|What went wrong|Exception|fatal|CMake Error" "$RUNNER_TEMP/build.log" | head -40 \
+            | while IFS= read -r line; do echo "::error::${line:0:900}"; done
+          echo "::error::tail: $(tail -c 3000 "$RUNNER_TEMP/build.log" | tr '\n' ' ')"
+          # CMake keeps the real compiler/configure output in its own logs.
+          find android/app/.cxx -name "CMakeError.log" -o -name "CMakeConfigureLog.yaml" 2>/dev/null | head -2 \
+            | while read -r f; do echo "::error::$(basename "$f"): $(tail -c 1500 "$f" | tr '\n' ' ')"; done
+
+      - name: Name the APK
+        run: |
+          mkdir -p "$RUNNER_TEMP/apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/apk/G-Zero-64.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: G-Zero-64-${{ github.run_number }}
+          path: ${{ runner.temp }}/apk/G-Zero-64.apk
+          retention-days: 7

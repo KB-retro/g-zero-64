@@ -1,4 +1,5 @@
 #include "sram_buffer.h"
+#include "gdx_self_exe.h"
 #include "gdx_hackmods.h" // per-hack save isolation: gdx_hackmod_active_save_basename
 #include "port_log.h"
 #include <cstdio>
@@ -172,7 +173,7 @@ static bool gdx_sram_path(char* outPath, size_t outCap) {
         }
 #else
         {
-            ssize_t n = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+            ssize_t n = gdx_readlink_self_exe(exePath, sizeof(exePath) - 1);
             if (n > 0) {
                 exePath[n] = '\0';
                 haveExePath = true;

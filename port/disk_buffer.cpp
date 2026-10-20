@@ -1,6 +1,7 @@
 // G-Diffuser — 64DD disk image loader (Expansion Kit). Host-side counterpart of
 // port/n64_leo.c: owns the CRT file I/O the gdiffuser_game target cannot include.
 #include "port_log.h"
+#include "gdx_self_exe.h"
 #include "rom_buffer.h"
 #include "gdx_extract_launch.h"
 #include "gen/EkTranslatedOverrides.h"
@@ -297,7 +298,7 @@ static void gdx_exe_dir(char* outDir, size_t outSize) {
         }
     }
 #else
-    ssize_t n = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+    ssize_t n = gdx_readlink_self_exe(exePath, sizeof(exePath) - 1);
     if (n <= 0) {
         return;
     }

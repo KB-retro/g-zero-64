@@ -9,9 +9,7 @@ name: Nightly
 # Nothing is published unless every platform built; the previous nightly stays up until then.
 
 on:
-  schedule:
-    # 06:00 UTC, after the evening's pushes in the Americas and before Europe's morning.
-    - cron: '0 6 * * *'
+  # G-Zero 64: no daily schedule in this fork; run by hand if a desktop build is needed.
   workflow_dispatch:
     inputs:
       force:

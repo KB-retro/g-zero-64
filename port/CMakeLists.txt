@@ -169,12 +169,17 @@ if(GDX_EXPANSION_KIT)
 endif()
 
 # Fiber backend for the scheduler (n64_sched.c -> gdx_fiber.h): Win32 fibers on Windows,
+# a hand-written register switch on Android (bionic has no ucontext) or when GDX_FIBER_ASM is set,
 # POSIX ucontext elsewhere.
-if(WIN32)
-    target_sources(gdiffuser_game PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/gdx_fiber_win32.c")
+option(GDX_FIBER_ASM "Use the asm fiber backend instead of ucontext (aarch64/x86-64)" OFF)
+if(ANDROID OR GDX_FIBER_ASM)
+    set(GDX_FIBER_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/gdx_fiber_asm.c")
+elseif(WIN32)
+    set(GDX_FIBER_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/gdx_fiber_win32.c")
 else()
-    target_sources(gdiffuser_game PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/gdx_fiber_ucontext.c")
+    set(GDX_FIBER_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/gdx_fiber_ucontext.c")
 endif()
+target_sources(gdiffuser_game PRIVATE "${GDX_FIBER_SOURCE}")
 
 target_include_directories(gdiffuser_game PRIVATE
     "${DECOMP}"            # decomp root: the C uses includes relative to it (e.g. "src/audio/...")
@@ -261,7 +266,7 @@ add_subdirectory(third_party/lua EXCLUDE_FROM_ALL)
 # Ogg Vorbis, FLAC and WAV decoders for the streamed BGM replacement (gdx_music_stream.cpp).
 add_subdirectory(third_party/music_decoders EXCLUDE_FROM_ALL)
 
-add_executable(G-Diffuser
+set(GDX_MAIN_SOURCES
     main.cpp
     gdx_discord.cpp
     gdx_gui.cpp
@@ -359,6 +364,26 @@ add_executable(G-Diffuser
                                 # rom_buffer.cpp and gen/AssetBindings.c
     "${CMAKE_CURRENT_SOURCE_DIR}/../torch/lib/libmio0/mio0.c"
     $<TARGET_OBJECTS:gdiffuser_game>)
+if(ANDROID)
+    # SDL's Java activity loads the game as libmain.so and calls its SDL_main.
+    add_library(G-Diffuser SHARED ${GDX_MAIN_SOURCES})
+    set_target_properties(G-Diffuser PROPERTIES OUTPUT_NAME main)
+    target_link_libraries(G-Diffuser PRIVATE android log)
+else()
+    add_executable(G-Diffuser ${GDX_MAIN_SOURCES})
+endif()
+
+# Runtime files (engine archive, fonts, shaders, recipes, extractor) go beside the executable.
+# The Android build writes them where Gradle packages them instead: GDX_ANDROID_ASSETS_DIR becomes
+# APK assets the launcher copies to the app folder, GDX_ANDROID_JNILIBS_DIR native libraries.
+if(ANDROID)
+    if(NOT GDX_ANDROID_ASSETS_DIR OR NOT GDX_ANDROID_JNILIBS_DIR)
+        message(FATAL_ERROR "Android builds need GDX_ANDROID_ASSETS_DIR and GDX_ANDROID_JNILIBS_DIR (set by android/app/build.gradle.kts)")
+    endif()
+    set(GDX_DEPLOY_DIR "${GDX_ANDROID_ASSETS_DIR}/runtime")
+else()
+    set(GDX_DEPLOY_DIR "$<TARGET_FILE_DIR:G-Diffuser>")
+endif()
 
 if(GDX_EXPANSION_KIT)
     # All four files reference EK-only symbols (gdx_ek_assets_fill, machine_create labels, EK
@@ -404,7 +429,7 @@ endif()
 
 # Scrubs a game-derived icon that older build trees still carry; harmless on a clean tree.
 add_custom_command(TARGET G-Diffuser POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E rm -f "$<TARGET_FILE_DIR:G-Diffuser>/gdiffuser.png"
+    COMMAND "${CMAKE_COMMAND}" -E rm -f "${GDX_DEPLOY_DIR}/gdiffuser.png"
     VERBATIM)
 
 file(GLOB_RECURSE GDIFFUSER_F3D_SHADER_SOURCES CONFIGURE_DEPENDS
@@ -422,20 +447,20 @@ add_custom_command(
 add_custom_target(gdiffuser_engine_o2r DEPENDS "${GDIFFUSER_ENGINE_O2R}")
 add_dependencies(G-Diffuser gdiffuser_engine_o2r)
 add_custom_command(TARGET G-Diffuser POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${GDIFFUSER_ENGINE_O2R}" "$<TARGET_FILE_DIR:G-Diffuser>/gdiffuser.o2r"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${GDIFFUSER_ENGINE_O2R}" "${GDX_DEPLOY_DIR}/gdiffuser.o2r"
     VERBATIM)
 
 # Fonts stay loose beside the exe so GdxFast3dGui can add them to ImGui's atlas before the
 # renderer uploads it.
 set(GDIFFUSER_GUI_FONT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts")
 add_custom_command(TARGET G-Diffuser POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:G-Diffuser>/fonts"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${GDX_DEPLOY_DIR}/fonts"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${GDIFFUSER_GUI_FONT_DIR}/Montserrat-Regular.ttf"
             "${GDIFFUSER_GUI_FONT_DIR}/Inconsolata-Regular.ttf"
             "${GDIFFUSER_GUI_FONT_DIR}/Montserrat-OFL.txt"
             "${GDIFFUSER_GUI_FONT_DIR}/Inconsolata-OFL.txt"
-            "$<TARGET_FILE_DIR:G-Diffuser>/fonts"
+            "${GDX_DEPLOY_DIR}/fonts"
     VERBATIM)
 
 # SDL only knows the pads that existed when it was released, and the one we bundle is pinned.
@@ -445,7 +470,7 @@ add_custom_command(TARGET G-Diffuser POST_BUILD
 add_custom_command(TARGET G-Diffuser POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${CMAKE_CURRENT_SOURCE_DIR}/assets/gamecontrollerdb.txt"
-            "$<TARGET_FILE_DIR:G-Diffuser>/gamecontrollerdb.txt"
+            "${GDX_DEPLOY_DIR}/gamecontrollerdb.txt"
     VERBATIM)
 
 # Keep the project license and every bundled/static dependency notice with binary releases.
@@ -454,10 +479,10 @@ add_custom_command(TARGET G-Diffuser POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${CMAKE_SOURCE_DIR}/LICENSE"
             "${CMAKE_SOURCE_DIR}/THIRD_PARTY_NOTICES.md"
-            "$<TARGET_FILE_DIR:G-Diffuser>"
+            "${GDX_DEPLOY_DIR}"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
             "${GDIFFUSER_LICENSE_DIR}"
-            "$<TARGET_FILE_DIR:G-Diffuser>/LICENSES"
+            "${GDX_DEPLOY_DIR}/LICENSES"
     VERBATIM)
 
 # The post-pipeline resolves file-based presets from appDir/shaders at runtime
@@ -468,7 +493,7 @@ add_custom_command(TARGET G-Diffuser POST_BUILD
 add_custom_command(TARGET G-Diffuser POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
             "${CMAKE_SOURCE_DIR}/shaders"
-            "$<TARGET_FILE_DIR:G-Diffuser>/shaders"
+            "${GDX_DEPLOY_DIR}/shaders"
     VERBATIM)
 
 # gdx-extract, the standalone deterministic O2R extractor first boot spawns as a child process.
@@ -493,11 +518,24 @@ set(GDX_EXTRACT_PREFIX  "${CMAKE_BINARY_DIR}/gdx-extract")
 set(GDX_EXTRACT_INSTALL "${GDX_EXTRACT_PREFIX}/install")
 set(GDX_EXTRACT_EXE     "${GDX_EXTRACT_INSTALL}/bin/gdx-extract${CMAKE_EXECUTABLE_SUFFIX}")
 
+# Cross builds (Android) hand the extractor the same toolchain as the game.
+set(GDX_EXTRACT_CROSS_ARGS)
+if(ANDROID)
+    list(APPEND GDX_EXTRACT_CROSS_ARGS
+        -DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}
+        -DANDROID_ABI:STRING=${ANDROID_ABI}
+        -DANDROID_PLATFORM:STRING=${ANDROID_PLATFORM}
+        -DANDROID_STL:STRING=c++_static # an exec()ed binary cannot find libc++_shared.so
+        -DCMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM})
+endif()
+
 ExternalProject_Add(gdx_extract_ext
     SOURCE_DIR  "${GDX_EXTRACT_SRC_DIR}"
     PREFIX      "${GDX_EXTRACT_PREFIX}"
     INSTALL_DIR "${GDX_EXTRACT_INSTALL}"
+    CMAKE_GENERATOR "${CMAKE_GENERATOR}"
     CMAKE_CACHE_ARGS
+        ${GDX_EXTRACT_CROSS_ARGS}
         -DUSE_STANDALONE:BOOL=ON
         -DBUILD_STORMLIB:BOOL=OFF
         -DGDX_DETERMINISTIC:BOOL=ON
@@ -517,18 +555,29 @@ ExternalProject_Add(gdx_extract_ext
 add_custom_target(gdx-extract DEPENDS gdx_extract_ext)
 add_dependencies(G-Diffuser gdx_extract_ext)
 
-add_custom_command(TARGET G-Diffuser POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${GDX_EXTRACT_EXE}"
-            "$<TARGET_FILE_DIR:G-Diffuser>/gdx-extract${CMAKE_EXECUTABLE_SUFFIX}"
-    VERBATIM)
+if(ANDROID)
+    # Apps may only execute files from their native library folder, so the extractor ships as a
+    # "library" and the launcher passes its path in GDX_EXTRACT_BIN.
+    add_custom_command(TARGET G-Diffuser POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${GDX_ANDROID_JNILIBS_DIR}/${ANDROID_ABI}"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${GDX_EXTRACT_EXE}"
+                "${GDX_ANDROID_JNILIBS_DIR}/${ANDROID_ABI}/libgdx_extract.so"
+        VERBATIM)
+else()
+    add_custom_command(TARGET G-Diffuser POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${GDX_EXTRACT_EXE}"
+                "${GDX_DEPLOY_DIR}/gdx-extract${CMAKE_EXECUTABLE_SUFFIX}"
+        VERBATIM)
+endif()
 
 # Deploy the recipe tree as decomp-recipes/ next to the exe. The packaged layout mirrors the
 # decomp source tree verbatim so config.yml needs no edits (Torch resolves paths relative to it).
 # US and PAL rev0 ship; JP is built by the separate G-Diffuser-JP target below. Recipe selection
 # is by matched ROM SHA1, so only the needed tree is dereferenced at runtime.
 set(GDX_RECIPES_SRC "${CMAKE_SOURCE_DIR}/decomp")
-set(GDX_RECIPES_DST "$<TARGET_FILE_DIR:G-Diffuser>/decomp-recipes")
+set(GDX_RECIPES_DST "${GDX_DEPLOY_DIR}/decomp-recipes")
 # The EK slice manifest ships beside the recipes so the runtime disk step can pass it to
 # `gdx-extract disk -m`.
 set(GDX_EK_SLICE_MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/gen/ek_slice_manifest.txt")
@@ -994,11 +1043,7 @@ if(GDX_BUILD_JP)
         target_compile_definitions(gdiffuser_game_jp PRIVATE EXPANSION_KIT=1 MFS_VERSION=1 BUILD_VERSION=VERSION_J)
     endif()
 
-    if(WIN32)
-        target_sources(gdiffuser_game_jp PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/gdx_fiber_win32.c")
-    else()
-        target_sources(gdiffuser_game_jp PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/gdx_fiber_ucontext.c")
-    endif()
+    target_sources(gdiffuser_game_jp PRIVATE "${GDX_FIBER_SOURCE}")
 
     target_include_directories(gdiffuser_game_jp PRIVATE
         "${DECOMP}"

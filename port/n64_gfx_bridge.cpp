@@ -2179,6 +2179,10 @@ void GetMainModuleRange(uintptr_t& moduleBegin, uintptr_t& moduleEnd) {
             wantPath = exePath;
         }
     }
+#elif defined(__ANDROID__)
+    // Android: the game is libmain.so loaded into app_process, so /proc/self/exe names the zygote
+    // binary. dladdr's dli_fname is the library's real path (native libs are extracted on install).
+    (void)exePath;
 #else
     {
         ssize_t n = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);

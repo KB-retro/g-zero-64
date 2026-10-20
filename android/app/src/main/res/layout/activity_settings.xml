@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="#0B0B18" android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="24dp">
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="@string/settings_title" android:textColor="#F3F6F7"
+            android:textSize="22sp" android:textStyle="bold|italic" android:fontFamily="sans-serif-condensed" />
+        <Switch android:id="@+id/setting_auto_start"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="20dp" android:minHeight="52dp"
+            android:text="@string/settings_auto_start" android:textColor="#E4E6EE" android:textSize="16sp" />
+        <TextView android:id="@+id/settings_credits"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="28dp" android:textColor="#8E92AA" android:textColorLink="#FFD35C"
+            android:textSize="13sp" android:lineSpacingExtra="3dp" />
+        <Button android:id="@+id/settings_back"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="24dp" android:minHeight="52dp"
+            android:background="@drawable/launcher_button" android:backgroundTint="@null" android:textColor="#2A1606"
+            android:text="@string/settings_back" android:textAllCaps="false"
+            android:textSize="16sp" android:textStyle="bold" />
+    </LinearLayout>
+</ScrollView>

@@ -1,6 +1,7 @@
 // G-Diffuser — runtime O2R asset extraction launcher. See gdx_extract_launch.h for the contract map.
 
 #include "gdx_extract_launch.h"
+#include "gdx_self_exe.h"
 
 #include "gdx_hackmods.h" // GDX_HACKMOD_NAME_MAX + the picker's own basename sanitiser
 #include "gdx_firstboot.h" // GdxFindIplSourceInDir -- shared IPL-source alt-name probe
@@ -188,6 +189,12 @@ constexpr const char* kExtractBinaryName = "gdx-extract.exe";
 #else
 constexpr const char* kExtractBinaryName = "gdx-extract";
 #endif
+
+// The packaged extractor beside the executable, or the Android launcher's GDX_EXTRACT_BIN.
+fs::path extractBinaryIn(const fs::path& dir) {
+    const char* override = gdx_extract_binary_override();
+    return override != nullptr ? fs::path(override) : dir / kExtractBinaryName;
+}
 
 // Fallback ROM SHA-1s (the keys decomp/config.yml uses). config.yml is authoritative at runtime --
 // recipes are the single source of truth -- and these are read only when it cannot be.
@@ -1243,7 +1250,7 @@ ExtractOutcome runExtraction(const fs::path& dataDir, const fs::path& romPath, c
     std::error_code ec;
     const char* archiveName = profile.archiveName; // fzerox.o2r (US) / fzerox-jp.o2r (JP) / fzerox-pal.o2r (PAL)
 
-    const fs::path extractBin = exeDir / kExtractBinaryName;
+    const fs::path extractBin = extractBinaryIn(exeDir);
     const fs::path recipesDir = exeDir / kRecipesDirName;
     if (!fileExists(extractBin)) {
         gdx_port_logf("[extract] extractor component missing (%s). Cannot build %s — booting from the "
@@ -1536,7 +1543,7 @@ void ensureIplArchive(const fs::path& dataDir, const fs::path& exeDir) {
         return;
     }
 
-    const fs::path extractBin = exeDir / kExtractBinaryName;
+    const fs::path extractBin = extractBinaryIn(exeDir);
     if (!fileExists(extractBin)) {
         gdx_port_logf("[extract-ipl] extractor component missing (%s); cannot build %s (raw-IPL "
                       "fallback).\n",
@@ -1703,7 +1710,7 @@ void ensureDiskArchive(const fs::path& dataDir, const fs::path& exeDir) {
         }
     }
 
-    const fs::path extractBin = exeDir / kExtractBinaryName;
+    const fs::path extractBin = extractBinaryIn(exeDir);
     if (!fileExists(extractBin)) {
         gdx_port_logf("[extract-disk] extractor component missing (%s); cannot build %s "
                       "(managed-copy/raw fallback).\n",
@@ -2059,7 +2066,7 @@ HackBuildResult GdxExtractBuildHackArchive(const char* romPathC, const char* hac
     const fs::path romPath(romPathC);
     const fs::path hackDir(hackDirC);
     const fs::path exeDir(exeDirC);
-    const fs::path extractBin = exeDir / kExtractBinaryName;
+    const fs::path extractBin = extractBinaryIn(exeDir);
     const fs::path recipesDir = exeDir / kRecipesDirName;
 
     if (!fileExists(romPath)) {
