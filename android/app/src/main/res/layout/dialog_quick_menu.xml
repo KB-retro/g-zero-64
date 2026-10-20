@@ -9,6 +9,12 @@
     <TextView android:id="@+id/quick_version"
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="4dp" android:textColor="#8E92AA" android:textSize="12sp" />
+    <Button android:id="@+id/quick_options"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="16dp" android:minHeight="48dp"
+        android:background="@drawable/launcher_button" android:backgroundTint="@null" android:textColor="#2A1606"
+        android:text="@string/quick_options" android:textAllCaps="false"
+        android:textSize="15sp" android:textStyle="bold" />
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="20dp" android:orientation="horizontal">
         <Button android:id="@+id/quick_resume"

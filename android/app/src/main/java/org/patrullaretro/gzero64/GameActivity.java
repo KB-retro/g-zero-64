@@ -54,6 +54,12 @@ public final class GameActivity extends SDLActivity {
         });
     }
 
+    /** G-Diffuser's own options menu toggles on F1 (libultraship Gui); send the key through SDL. */
+    void openPortMenu() {
+        onNativeKeyDown(KeyEvent.KEYCODE_F1);
+        onNativeKeyUp(KeyEvent.KEYCODE_F1);
+    }
+
     /** The quick menu's Exit: the system back behaviour this activity replaced. */
     void exitGame() {
         super.onBackPressed();

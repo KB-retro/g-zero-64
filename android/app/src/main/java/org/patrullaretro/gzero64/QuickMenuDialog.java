@@ -28,6 +28,12 @@ final class QuickMenuDialog {
         resume.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view) { dialog.dismiss(); }
         });
+        dialog.findViewById(R.id.quick_options).setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view) {
+                dialog.dismiss();
+                activity.openPortMenu();
+            }
+        });
         dialog.findViewById(R.id.quick_exit).setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view) {
                 dialog.dismiss();
