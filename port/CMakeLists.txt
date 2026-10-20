@@ -385,6 +385,14 @@ else()
     set(GDX_DEPLOY_DIR "$<TARGET_FILE_DIR:G-Diffuser>")
 endif()
 
+if(ANDROID)
+    # Bionic's bcopy/bzero macros reject the decomp's calls; see gdx_android_libc.h.
+    foreach(target gdiffuser_game G-Diffuser)
+        target_compile_options(${target} PRIVATE
+            "SHELL:$<$<COMPILE_LANGUAGE:C>:-include ${CMAKE_CURRENT_SOURCE_DIR}/gdx_android_libc.h>")
+    endforeach()
+endif()
+
 if(GDX_EXPANSION_KIT)
     # All four files reference EK-only symbols (gdx_ek_assets_fill, machine_create labels, EK
     # overlay .data), so they must not build in US-only configs.

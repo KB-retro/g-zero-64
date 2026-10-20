@@ -120,6 +120,11 @@ int LeoTestUnitReady(unsigned char* status) {
 int bcmp(const void* a, const void* b, int n) { return memcmp(a, b, (size_t)n); }
 void bcopy(const void* src, void* dst, int n) { memmove(dst, src, (size_t)n); }
 #endif
+#ifdef __ANDROID__
+// Targets of the bcopy/bzero macros in gdx_android_libc.h.
+void gdx_bcopy(const void* src, void* dst, size_t n) { memmove(dst, src, n); }
+void gdx_bzero(void* p, size_t n) { memset(p, 0, n); }
+#endif
 
 // Host CRT wrappers for decomp-side code. The gdiffuser_game object target must not include
 // MSVC system headers, so it calls these wrappers instead of relying on implicit CRT prototypes.
