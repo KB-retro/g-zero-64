@@ -1,0 +1,31 @@
+diff --git a/src/fast/backends/gfx_opengl.cpp b/src/fast/backends/gfx_opengl.cpp
+index ead3f9b..8ca4013 100644
+--- a/src/fast/backends/gfx_opengl.cpp
++++ b/src/fast/backends/gfx_opengl.cpp
+@@ -317,7 +317,7 @@ std::string GfxRenderingAPIOGL::BuildFsShader(const CCFeatures& cc_features) {
+         { "texture", "texture" },
+         { "vOutColor", "vOutColor" },
+ #elif defined(USE_OPENGLES)
+-        { "GLSL_VERSION", "#version 300 es\nprecision mediump float;" },
++        { "GLSL_VERSION", "#version 300 es\nprecision highp float;" },
+         { "attr", "in" },
+         { "opengles", true },
+         { "core_opengl", false },
+@@ -1274,7 +1274,7 @@ void GfxRenderingAPIOGL::SelectTextureFb(int fb_id) {
+     "out vec2 vUV;\n"
+ #define GDX_POST_FS_PRELUDE                                                                    \
+     "#version 300 es\n"                                                                        \
+-    "precision mediump float;\n"                                                               \
++    "precision highp float;\n"                                                               \
+     "in vec2 vUV;\n"                                                                           \
+     "out vec4 gdxFragColor;\n"
+ #define GDX_POST_SAMPLE "texture"
+@@ -1405,7 +1405,7 @@ static std::string GdxBuildCustomPostFsSource(const std::string& userBody) {
+            userBody;
+ #elif defined(USE_OPENGLES)
+     return std::string("#version 300 es\n"
+-                       "precision mediump float;\n"
++                       "precision highp float;\n"
+                        "in vec2 vUV;\n"
+                        "out vec4 gdxFragColor;\n"
+                        "uniform sampler2D uTex;\n"

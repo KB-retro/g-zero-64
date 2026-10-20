@@ -36,6 +36,23 @@ if(ANDROID)
     add_compile_definitions(IMGUI_IMPL_OPENGL_ES3)
     # GLES 3.0 has no border clamp (3.2 only); the post-process passes fall back to edge clamp.
     add_compile_definitions(GL_CLAMP_TO_BORDER=GL_CLAMP_TO_EDGE)
+    # Android-only fixes to the libultraship submodule live as patches, applied once per checkout.
+    find_package(Git REQUIRED)
+    file(GLOB GDX_LUS_PATCHES "${CMAKE_CURRENT_SOURCE_DIR}/android/patches/libultraship/*.patch")
+    foreach(patch ${GDX_LUS_PATCHES})
+        execute_process(COMMAND "${GIT_EXECUTABLE}" apply --reverse --check "${patch}"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/libultraship"
+            RESULT_VARIABLE already OUTPUT_QUIET ERROR_QUIET)
+        if(NOT already EQUAL 0)
+            execute_process(COMMAND "${GIT_EXECUTABLE}" apply "${patch}"
+                WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/libultraship"
+                RESULT_VARIABLE applied ERROR_VARIABLE applyError)
+            if(NOT applied EQUAL 0)
+                message(FATAL_ERROR "Cannot apply ${patch}: ${applyError}")
+            endif()
+            message(STATUS "G-Zero 64: applied ${patch}")
+        endif()
+    endforeach()
 endif()
 add_subdirectory(libultraship)     # runtime + Fast3D renderer
 add_subdirectory(port)             # game glue + decomp sources + G-Diffuser executable
