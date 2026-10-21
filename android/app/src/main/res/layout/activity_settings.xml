@@ -11,6 +11,10 @@
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginTop="20dp" android:minHeight="52dp"
             android:text="@string/settings_auto_start" android:textColor="#E4E6EE" android:textSize="16sp" />
+        <Button android:id="@+id/settings_save_log"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" android:minHeight="48dp"
+            android:text="@string/settings_save_log" android:textAllCaps="false" android:textSize="15sp" />
         <TextView android:id="@+id/settings_credits"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginTop="28dp" android:textColor="#8E92AA" android:textColorLink="#FFD35C"

@@ -6,4 +6,7 @@
 # add_compile_options sets a directory property that the overwrite does not touch.
 if(NOT MSVC)
     add_compile_options(-ffp-contract=off)
+    # Plain char is unsigned on Linux/Android ARM64 but signed on x86-64 and Apple ARM64, where the
+    # golden archive was produced; match them so the extractor reads the ROM the same way.
+    add_compile_options(-fsigned-char)
 endif()

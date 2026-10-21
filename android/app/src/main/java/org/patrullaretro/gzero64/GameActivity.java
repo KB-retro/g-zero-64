@@ -25,6 +25,8 @@ public final class GameActivity extends SDLActivity {
         try {
             Os.setenv("GDX_APP_DIR", appDir.getAbsolutePath(), true);
             Os.setenv("GDX_EXTRACT_BIN", getApplicationInfo().nativeLibraryDir + "/libgdx_extract.so", true);
+            // gdiffuser-run.log, saved from Settings when something goes wrong.
+            Os.setenv("GDX_LOG", "1", true);
         } catch (ErrnoException exception) {
             Log.e("GZero64", "Cannot export the app folder", exception);
         }

@@ -36,6 +36,9 @@ if(ANDROID)
     add_compile_definitions(IMGUI_IMPL_OPENGL_ES3)
     # GLES 3.0 has no border clamp (3.2 only); the post-process passes fall back to edge clamp.
     add_compile_definitions(GL_CLAMP_TO_BORDER=GL_CLAMP_TO_EDGE)
+    # The port was validated where plain char is signed (x86-64, Apple ARM64); Android ARM64 makes it
+    # unsigned. Keep the desktop behaviour for the game too.
+    add_compile_options(-fsigned-char)
     # Android-only fixes to submodules live as android/patches/<submodule>/*.patch, applied once
     # per checkout.
     find_package(Git REQUIRED)

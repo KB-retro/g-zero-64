@@ -16,6 +16,10 @@
 #else
 #include <fcntl.h>
 #include <unistd.h>
+#include "gdx_self_exe.h"
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
 #ifdef __APPLE__
 #include <mach-o/dyld.h>   /* _NSGetExecutablePath */
 #include <limits.h>         /* PATH_MAX */
@@ -92,7 +96,7 @@ static inline const char* gdx_exe_relative_path(char* outPath, size_t outCap, co
     }
 #else
     {
-        ssize_t rl = readlink("/proc/self/exe", outPath, outCap - 1);
+        ssize_t rl = gdx_readlink_self_exe(outPath, outCap - 1);
         if (rl > 0 && (size_t)rl < outCap) {
             outPath[rl] = '\0';
             char* slash = strrchr(outPath, '/');
@@ -172,6 +176,10 @@ static inline void gdx_port_write_log(const char* message) {
     }
     fputs(message, stderr);
     fflush(stderr);
+#ifdef __ANDROID__
+    // stderr goes nowhere in an app; mirror to logcat.
+    __android_log_write(ANDROID_LOG_INFO, "GZero64", message);
+#endif
 #endif
 }
 

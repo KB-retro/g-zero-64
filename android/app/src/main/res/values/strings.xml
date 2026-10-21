@@ -26,6 +26,9 @@
     <string name="launcher_credits">&lt;a href="https://github.com/KB-retro/g-zero-64/commit/%2$s"&gt;Versión %1$s&lt;/a&gt;　/　&lt;a href="https://github.com/KB-retro/g-zero-64"&gt;Repositorio&lt;/a&gt;　/　&lt;a href="https://github.com/KB-retro"&gt;KB-retro&lt;/a&gt;</string>
     <string name="settings_title">AJUSTES</string>
     <string name="settings_auto_start">Inicio automático</string>
+    <string name="settings_save_log">Guardar registro</string>
+    <string name="settings_log_saved">Registro guardado.</string>
+    <string name="settings_log_failed">No se pudo guardar el registro.</string>
     <string name="settings_back">Volver</string>
     <string name="port_credits_body">G-Zero 64 de &lt;a href="https://github.com/KB-retro"&gt;KB-retro&lt;/a&gt; · &lt;a href="https://github.com/KB-retro/g-zero-64/commit/%2$s"&gt;versión %1$s&lt;/a&gt;&lt;br&gt;&lt;br&gt;Port para Android basado en &lt;a href="https://github.com/Zorkats/G-Diffuser"&gt;G-Diffuser&lt;/a&gt; de Zorkats (licencia MIT),&lt;br&gt;sobre la decompilación &lt;a href="https://github.com/inspectredc/fzerox"&gt;inspectredc/fzerox&lt;/a&gt;, &lt;a href="https://github.com/Kenix3/libultraship"&gt;libultraship&lt;/a&gt; y &lt;a href="https://github.com/HarbourMasters/Torch"&gt;Torch&lt;/a&gt;.&lt;br&gt;No incluye datos del juego: necesitas tus propias copias.</string>
     <string name="quick_title">MENÚ RÁPIDO</string>

@@ -1134,6 +1134,14 @@ bool runExtractorWindows(const fs::path& exe, const std::wstring& cmdLine, const
 
 #else // POSIX
 
+// Desktop extraction takes seconds. Handhelds write to slower storage, so Android waits longer
+// before calling the child hung.
+#ifdef __ANDROID__
+constexpr int kExtractDeadlineSecs = 900;
+#else
+constexpr int kExtractDeadlineSecs = 120;
+#endif
+
 bool runExtractorPosix(const fs::path& exe, const std::vector<std::string>& args, const fs::path& workDir,
                        int& exitCode, ExtractState& state) {
     int pipefd[2];
@@ -1181,7 +1189,7 @@ bool runExtractorPosix(const fs::path& exe, const std::vector<std::string>& args
     close(pipefd[1]);
     std::string acc;
     char buf[4096];
-    const time_t deadline = time(nullptr) + 120;
+    const time_t deadline = time(nullptr) + kExtractDeadlineSecs;
     bool timedOut = false;
     for (;;) {
         fd_set rfds;
@@ -1210,7 +1218,8 @@ bool runExtractorPosix(const fs::path& exe, const std::vector<std::string>& args
             }
         }
         if (time(nullptr) >= deadline) {
-            gdx_port_logf("[extract] ERROR: extractor exceeded the 120s deadline; killing child\n");
+            gdx_port_logf("[extract] ERROR: extractor exceeded the %ds deadline; killing child\n",
+                          kExtractDeadlineSecs);
             kill(pid, SIGKILL);
             timedOut = true;
             break;
@@ -1388,7 +1397,7 @@ ExtractOutcome runExtraction(const fs::path& dataDir, const fs::path& romPath, c
                       "from the raw ROM.\n",
                       exitCode, archiveName);
         std::string failure = exitCode == 124
-                                  ? std::string("The extractor timed out (exceeded the 120s deadline).")
+                                  ? std::string("The extractor timed out.")
                                   : ("The extractor failed (exit code " + std::to_string(exitCode) + ").");
         if (!state.failureLine.empty()) {
             failure += "\n" + state.failureLine;

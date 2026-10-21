@@ -23,6 +23,9 @@
     <string name="launcher_credits">&lt;a href="https://github.com/KB-retro/g-zero-64/commit/%2$s"&gt;Version %1$s&lt;/a&gt;　/　&lt;a href="https://github.com/KB-retro/g-zero-64"&gt;Repository&lt;/a&gt;　/　&lt;a href="https://github.com/KB-retro"&gt;KB-retro&lt;/a&gt;</string>
     <string name="settings_title">SETTINGS</string>
     <string name="settings_auto_start">Auto start</string>
+    <string name="settings_save_log">Save log</string>
+    <string name="settings_log_saved">Log saved.</string>
+    <string name="settings_log_failed">The log could not be saved.</string>
     <string name="settings_back">Back</string>
     <string name="port_credits_body">G-Zero 64 by &lt;a href="https://github.com/KB-retro"&gt;KB-retro&lt;/a&gt; · &lt;a href="https://github.com/KB-retro/g-zero-64/commit/%2$s"&gt;version %1$s&lt;/a&gt;&lt;br&gt;&lt;br&gt;Android port based on &lt;a href="https://github.com/Zorkats/G-Diffuser"&gt;G-Diffuser&lt;/a&gt; by Zorkats (MIT license),&lt;br&gt;built on the &lt;a href="https://github.com/inspectredc/fzerox"&gt;inspectredc/fzerox&lt;/a&gt; decompilation, &lt;a href="https://github.com/Kenix3/libultraship"&gt;libultraship&lt;/a&gt; and &lt;a href="https://github.com/HarbourMasters/Torch"&gt;Torch&lt;/a&gt;.&lt;br&gt;No game data included: you need your own dumps.</string>
     <string name="quick_title">QUICK MENU</string>
