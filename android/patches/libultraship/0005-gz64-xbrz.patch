@@ -1,0 +1,133 @@
+diff --git a/src/fast/interpreter.cpp b/src/fast/interpreter.cpp
+index 07a3477..8713189 100644
+--- a/src/fast/interpreter.cpp
++++ b/src/fast/interpreter.cpp
+@@ -85,6 +85,26 @@ static bool sGz64Fxaa = false;
+ static bool sGz64Fsr = false;
+ static float sGz64FsrSharpness = 0.2f;
+ 
++// G-Zero 64: xBRZ upscaling of the game's own decoded textures (port/gz64_xbrz.cpp). The factor
++// (0 = off, 2-4) is latched in StartFrame, which empties the texture cache when it changes so every
++// texture is decoded again at the new size.
++extern "C" const uint8_t* gz64_xbrz_scale(const uint8_t* rgba32, uint32_t width, uint32_t height, int factor,
++                                          uint32_t* outWidth, uint32_t* outHeight);
++static int sGz64XbrzFactor = 0;
++
++static void Gz64UploadDecoded(GfxRenderingAPI* rapi, const uint8_t* rgba32, uint32_t width, uint32_t height) {
++    uint32_t scaledWidth = width;
++    uint32_t scaledHeight = height;
++    const uint8_t* scaled = sGz64XbrzFactor >= 2
++                                ? gz64_xbrz_scale(rgba32, width, height, sGz64XbrzFactor, &scaledWidth, &scaledHeight)
++                                : nullptr;
++    if (scaled != nullptr) {
++        rapi->UploadTexture(scaled, scaledWidth, scaledHeight);
++    } else {
++        rapi->UploadTexture(rgba32, width, height);
++    }
++}
++
+ static UcodeHandlers ucode_handler_index = ucode_f3dex2;
+ 
+ const static uint32_t f3dex2AttrHandler[] = {
+@@ -1167,7 +1187,7 @@ void Interpreter::ImportTextureRgba16(int textureUnit, int tile, bool importRepl
+                     }
+                 }
+                 GdxDumpDecodedRgba32(tile, mTexUploadBuffer, width, height);
+-                mRapi->UploadTexture(mTexUploadBuffer, width, height);
++                Gz64UploadDecoded(mRapi, mTexUploadBuffer, width, height);
+                 return;
+             }
+         }
+@@ -1351,7 +1371,7 @@ void Interpreter::ImportTextureRgba16(int textureUnit, int tile, bool importRepl
+     }
+ 
+     GdxDumpDecodedRgba32(tile, mTexUploadBuffer, width, height);
+-    mRapi->UploadTexture(mTexUploadBuffer, width, height);
++    Gz64UploadDecoded(mRapi, mTexUploadBuffer, width, height);
+ }
+ 
+ void Interpreter::ImportTextureRgba32(int tile, bool importReplacement) {
+@@ -1412,7 +1432,7 @@ void Interpreter::ImportTextureRgba32(int tile, bool importReplacement) {
+         }
+     }
+     GdxDumpDecodedRgba32(tile, mTexUploadBuffer, width, height);
+-    mRapi->UploadTexture(mTexUploadBuffer, width, height);
++    Gz64UploadDecoded(mRapi, mTexUploadBuffer, width, height);
+ }
+ 
+ void Interpreter::ImportTextureIA4(int tile, bool importReplacement) {
+@@ -1469,7 +1489,7 @@ void Interpreter::ImportTextureIA4(int tile, bool importReplacement) {
+     }
+ 
+     GdxDumpDecodedRgba32(tile, mTexUploadBuffer, width, height);
+-    mRapi->UploadTexture(mTexUploadBuffer, width, height);
++    Gz64UploadDecoded(mRapi, mTexUploadBuffer, width, height);
+ }
+ 
+ void Interpreter::ImportTextureIA8(int tile, bool importReplacement) {
+@@ -1521,7 +1541,7 @@ void Interpreter::ImportTextureIA8(int tile, bool importReplacement) {
+     }
+ 
+     GdxDumpDecodedRgba32(tile, mTexUploadBuffer, width, height);
+-    mRapi->UploadTexture(mTexUploadBuffer, width, height);
++    Gz64UploadDecoded(mRapi, mTexUploadBuffer, width, height);
+ }
+ 
+ void Interpreter::ImportTextureIA16(int tile, bool importReplacement) {
+@@ -1573,7 +1593,7 @@ void Interpreter::ImportTextureIA16(int tile, bool importReplacement) {
+     }
+ 
+     GdxDumpDecodedRgba32(tile, mTexUploadBuffer, width, height);
+-    mRapi->UploadTexture(mTexUploadBuffer, width, height);
++    Gz64UploadDecoded(mRapi, mTexUploadBuffer, width, height);
+ }
+ 
+ void Interpreter::ImportTextureI4(int tile, bool importReplacement) {
+@@ -1696,7 +1716,7 @@ void Interpreter::ImportTextureI4(int tile, bool importReplacement) {
+         }
+     }
+     GdxDumpDecodedRgba32(tile, mTexUploadBuffer, width, height);
+-    mRapi->UploadTexture(mTexUploadBuffer, width, height);
++    Gz64UploadDecoded(mRapi, mTexUploadBuffer, width, height);
+ }
+ 
+ void Interpreter::ImportTextureI8(int tile, bool importReplacement) {
+@@ -1738,7 +1758,7 @@ void Interpreter::ImportTextureI8(int tile, bool importReplacement) {
+     }
+ 
+     GdxDumpDecodedRgba32(tile, mTexUploadBuffer, width, height);
+-    mRapi->UploadTexture(mTexUploadBuffer, width, height);
++    Gz64UploadDecoded(mRapi, mTexUploadBuffer, width, height);
+ }
+ 
+ void Interpreter::ImportTextureCi4(int tile, bool importReplacement) {
+@@ -1821,7 +1841,7 @@ void Interpreter::ImportTextureCi4(int tile, bool importReplacement) {
+     }
+ 
+     GdxDumpDecodedRgba32(tile, mTexUploadBuffer, width, height);
+-    mRapi->UploadTexture(mTexUploadBuffer, width, height);
++    Gz64UploadDecoded(mRapi, mTexUploadBuffer, width, height);
+ }
+ 
+ void Interpreter::ImportTextureCi8(int tile, bool importReplacement) {
+@@ -1943,7 +1963,7 @@ void Interpreter::ImportTextureCi8(int tile, bool importReplacement) {
+     }
+ 
+     GdxDumpDecodedRgba32(tile, mTexUploadBuffer, width, height);
+-    mRapi->UploadTexture(mTexUploadBuffer, width, height);
++    Gz64UploadDecoded(mRapi, mTexUploadBuffer, width, height);
+ }
+ 
+ void Interpreter::ImportTextureImg(int tile, bool importReplacement) {
+@@ -7728,6 +7748,11 @@ void Interpreter::StartFrame() {
+     if (mPostShaderCache == 0 && (sGz64Fxaa || sGz64Fsr)) {
+         mPostShaderCache = kGz64FilterMode;
+     }
++    const int xbrzFactor = std::clamp(CVarGetInteger("gGZ64.Xbrz", 0), 0, 4);
++    if (xbrzFactor != sGz64XbrzFactor) {
++        sGz64XbrzFactor = xbrzFactor;
++        TextureCacheClear();
++    }
+     // HudMaxAspect: 0 or any out-of-range value means no clamp, so ANCHOR-scoped HUD elements
+     // glue to the true screen corners. A value in [4:3, 8) confines the HUD to a centred band of
+     // that aspect.

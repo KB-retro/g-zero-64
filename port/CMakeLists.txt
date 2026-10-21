@@ -367,7 +367,8 @@ set(GDX_MAIN_SOURCES
     $<TARGET_OBJECTS:gdiffuser_game>)
 if(ANDROID)
     # SDL's Java activity loads the game as libmain.so and calls its SDL_main.
-    add_library(G-Diffuser SHARED ${GDX_MAIN_SOURCES} gdx_android_bridge.cpp gdx_menu_bridge.cpp)
+    add_library(G-Diffuser SHARED ${GDX_MAIN_SOURCES} gdx_android_bridge.cpp gdx_menu_bridge.cpp
+                gz64_xbrz.cpp third_party/xbrz/xbrz.cpp)
     set_target_properties(G-Diffuser PROPERTIES OUTPUT_NAME main)
     target_link_libraries(G-Diffuser PRIVATE android log)
 else()

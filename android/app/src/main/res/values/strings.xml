@@ -61,6 +61,14 @@
     <string name="quick_install_failed">No hay ningún explorador de archivos disponible.</string>
     <string name="quick_installed">Instalados: %d.</string>
     <string name="quick_install_skipped">No válidos: %d.</string>
+    <string name="quick_xbrz">Escalado de texturas (xBRZ)</string>
+    <string name="quick_xbrz_tip">Suaviza iconos, letras y texturas del juego sin emborronarlos. Desactívalo si usas un pack de texturas. 4x exige más al cargar.</string>
+    <string-array name="quick_xbrz">
+        <item>Desactivado</item>
+        <item>2x</item>
+        <item>3x</item>
+        <item>4x</item>
+    </string-array>
     <string name="quick_cancel">Cancelar</string>
     <string-array name="quick_formats">
         <item>Automático</item>

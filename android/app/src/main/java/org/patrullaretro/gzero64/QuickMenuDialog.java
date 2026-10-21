@@ -67,9 +67,11 @@ final class QuickMenuDialog {
     private static final String FSR_SHARPNESS = "gGZ64.FsrSharpness";
     private static final String FXAA = "gGZ64.Fxaa";
     private static final String MSAA = "gMSAAValue";
+    private static final String XBRZ = "gGZ64.Xbrz";
     private static final Object[][] SETTINGS = {
-        {FSR, false, 0f}, {FSR_SHARPNESS, true, 0.2f}, {FXAA, false, 0f}, {MSAA, false, 1f},
+        {FSR, false, 0f}, {FSR_SHARPNESS, true, 0.2f}, {FXAA, false, 0f}, {MSAA, false, 1f}, {XBRZ, false, 0f},
     };
+    private static final int[] XBRZ_FACTORS = {0, 2, 3, 4};
     static final int PICK_MODS = 6401;
     private static final String RELOAD_PACKS = "special/reload";
     /** The open menu, for the mod picker's result. */
@@ -457,6 +459,15 @@ final class QuickMenuDialog {
 
     /** FSR and anti-aliasing (G-Zero 64's own passes), at the top of Graphics enhancements. */
     private void addScalingRows() {
+        addChoice(R.string.quick_xbrz, R.string.quick_xbrz_tip, new Choice() {
+            @Override public String[] values() { return array(R.array.quick_xbrz); }
+            @Override public int get() {
+                int factor = Math.round(value(XBRZ));
+                for (int i = 0; i < XBRZ_FACTORS.length; i++) if (XBRZ_FACTORS[i] == factor) return i;
+                return 0;
+            }
+            @Override public void set(int value) { setSetting(XBRZ, false, XBRZ_FACTORS[value]); }
+        });
         addChoice(R.string.quick_fsr, R.string.quick_fsr_tip, new Choice() {
             @Override public String[] values() { return array(R.array.quick_off_on); }
             @Override public int get() { return value(FSR) != 0 ? 1 : 0; }

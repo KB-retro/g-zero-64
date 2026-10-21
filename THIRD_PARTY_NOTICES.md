@@ -25,6 +25,11 @@ The package also includes or statically links Dear ImGui, prism, BS::thread_pool
 libgfxd, yaml-cpp, spdlog, tinyxml2, SDL2, fmt, libzip, zlib, bzip2, GLEW, nlohmann/json, and
 miniz-cpp/miniz. Their complete notices are the correspondingly named files under `LICENSES/`.
 
+The Android build (G-Zero 64) also compiles xBRZ by Zenju (`port/third_party/xbrz`), the optional
+texture upscaler, which is licensed under the GNU General Public License v3
+(`LICENSES/GPL-3.0-xBRZ.txt`). Because of it, the Android APK as a whole is distributed under the
+terms of the GPL v3; its complete source is this repository. The desktop builds do not include it.
+
 Montserrat and Inconsolata are distributed under the SIL Open Font License 1.1. Their license texts
 are included both under `LICENSES/` and beside the fonts in release packages.
 

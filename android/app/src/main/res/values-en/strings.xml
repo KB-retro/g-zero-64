@@ -58,6 +58,14 @@
     <string name="quick_install_failed">No file browser available.</string>
     <string name="quick_installed">Installed: %d.</string>
     <string name="quick_install_skipped">Not valid: %d.</string>
+    <string name="quick_xbrz">Texture upscaling (xBRZ)</string>
+    <string name="quick_xbrz_tip">Smooths the game\'s icons, lettering and textures without blurring them. Turn it off with a texture pack. 4x costs more when loading.</string>
+    <string-array name="quick_xbrz">
+        <item>Off</item>
+        <item>2x</item>
+        <item>3x</item>
+        <item>4x</item>
+    </string-array>
     <string name="quick_cancel">Cancel</string>
     <string-array name="quick_formats">
         <item>Automatic</item>
