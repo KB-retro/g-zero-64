@@ -42,12 +42,12 @@ val prepareSdlJava by tasks.registering {
 }
 
 android {
-    namespace = "org.patrullaretro.gzero64"
+    namespace = "io.github.kbretro.gzero64"
     compileSdk = 37
     ndkVersion = "30.0.16248370"
     buildFeatures { buildConfig = true }
     defaultConfig {
-        applicationId = "org.patrullaretro.gzero64"
+        applicationId = "io.github.kbretro.gzero64"
         minSdk = 30
         targetSdk = 37
         // CI builds count up so every APK installs as an update (0.1.<run>).

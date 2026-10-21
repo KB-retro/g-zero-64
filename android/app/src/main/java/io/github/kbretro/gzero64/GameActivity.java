@@ -1,4 +1,4 @@
-package org.patrullaretro.gzero64;
+package io.github.kbretro.gzero64;
 
 import android.os.Bundle;
 import android.system.ErrnoException;

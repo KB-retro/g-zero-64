@@ -17,7 +17,7 @@ de upstream salvo que se pida.
 - Pensado para consolas Android (Retroid / Odin 2 Portal, RG477M con Mali).
 
 ## Android
-- `android/app`: Java (paquete `org.patrullaretro.gzero64`), Gradle en la raíz (`settings.gradle.kts`).
+- `android/app`: Java (paquete `io.github.kbretro.gzero64`), Gradle en la raíz (`settings.gradle.kts`).
 - `android/SDL`: submódulo SDL2 release-2.32.10 (C y Java deben coincidir).
 - El juego es `libmain.so`; el extractor Torch va como `libgdx_extract.so` y se ejecuta como proceso
   hijo (por eso `useLegacyPackaging`). Rutas: `GDX_APP_DIR` (carpeta externa de la app) y

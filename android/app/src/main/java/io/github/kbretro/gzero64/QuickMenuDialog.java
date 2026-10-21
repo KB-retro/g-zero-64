@@ -1,4 +1,4 @@
-package org.patrullaretro.gzero64;
+package io.github.kbretro.gzero64;
 
 import android.app.AlertDialog;
 import android.app.Dialog;

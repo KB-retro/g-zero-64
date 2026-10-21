@@ -1,4 +1,4 @@
-package org.patrullaretro.gzero64;
+package io.github.kbretro.gzero64;
 
 /**
  * Game settings for the quick menu (port/gdx_android_bridge.cpp). Reads are answered by the game
