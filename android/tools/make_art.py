@@ -3,7 +3,8 @@
     python3 android/tools/make_art.py
 
 cover-source.png is the cover already cropped clear of its badge strip and rating box, which carry
-third-party marks and must not come back.
+third-party marks and must not come back; where the lettering overlapped the strip, the strip was
+painted over with sky.
 """
 import os
 from PIL import Image, ImageDraw, ImageFilter
@@ -13,8 +14,8 @@ ART = os.path.join(HERE, "..", "art")
 RES = os.path.join(HERE, "..", "app", "src", "main", "res")
 DOCS = os.path.join(HERE, "..", "..", "docs", "branding")
 
-COVER_WIDTH = 852            # width of the cropped cover
-LOGO_BOX = (15, 95, 852, 425)  # the G-ZERO 64 lettering on the cover
+COVER_WIDTH = 880            # width of the cropped cover
+LOGO_BOX = (15, 95, 880, 425)  # the G-ZERO 64 lettering on the cover
 ICON_BOX = (40, 40, 1214, 1214)  # inside the black margin of icon-source.png
 
 
@@ -41,7 +42,7 @@ def cover():
 
 def readme_images(art, icon):
     os.makedirs(DOCS, exist_ok=True)
-    portrait = art.resize((568, 1024), Image.LANCZOS)
+    portrait = art.resize((587, 1024), Image.LANCZOS)
     portrait.save(os.path.join(DOCS, "gzero64-cover.jpg"), quality=88)
     icon.resize((192, 192), Image.LANCZOS).save(os.path.join(DOCS, "gzero64-icon.png"))
     for old in ("gzero64-banner.png",):
