@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
@@ -25,6 +26,8 @@ public final class GameActivity extends SDLActivity {
             Os.setenv("GDX_EXTRACT_BIN", getApplicationInfo().nativeLibraryDir + "/libgdx_extract.so", true);
             // gdiffuser-run.log, saved from Settings when something goes wrong.
             Os.setenv("GDX_LOG", "1", true);
+            // GLES samples the CPU-drawn boot logo bottom-up, unlike desktop GL.
+            Os.setenv("GDX_VI_SCANOUT_FLIP", "1", true);
         } catch (ErrnoException exception) {
             Log.e("GZero64", "Cannot export the app folder", exception);
         }
@@ -47,6 +50,15 @@ public final class GameActivity extends SDLActivity {
     // Back opens the quick menu; leaving the game is its Exit button.
     @Override public void onBackPressed() {
         showQuickMenu();
+    }
+
+    // SDL takes a controller's Back key as a pad button before onBackPressed sees it.
+    @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) showQuickMenu();
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     private void showQuickMenu() {
