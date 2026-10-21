@@ -26,7 +26,10 @@ aunque funciona en cualquier dispositivo compatible.
 > **Estado:** primera versión en pruebas. Puede tener fallos; si encuentras alguno, abre un
 > [issue](https://github.com/KB-retro/g-zero-64/issues).
 
-**No incluye ningún archivo del juego.** Necesitas tus propias copias (ver [Archivos necesarios](#archivos-necesarios)).
+> [!IMPORTANT]
+> **Proyecto no oficial y gratuito**, sin relación con los propietarios del juego original ni
+> respaldado por ellos. **No incluye ningún archivo del juego:** necesitas tu propia copia legal (ver
+> [Archivos necesarios](#archivos-necesarios)). No se vende ni se acepta dinero por él.
 
 ## Funciones
 
@@ -120,3 +123,6 @@ Proyecto de fans no oficial, sin relación con los titulares de los derechos del
 respaldado por ellos. Las marcas pertenecen a sus propietarios. G-Zero 64 no contiene ROM, disco, IPL ni ningún otro dato del juego: cada
 usuario debe aportar sus propias copias legales. Los archivos que la app genera a partir de ellas
 (como `fzerox.o2r`) también son datos del juego y no deben compartirse.
+
+G-Zero 64 es gratuito y no tiene ánimo de lucro. Si los titulares de los derechos tienen cualquier
+objeción, se atenderá y se retirará el contenido afectado.
