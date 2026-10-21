@@ -24,6 +24,7 @@
 #endif
 
 #include "gdx_menu.h"
+#include "gdx_i18n.h"
 #include "gdx_menu_internal.h" // the helpers below, shared with port/gdx_menu_registry.cpp
 
 #include <imgui.h>
@@ -185,7 +186,7 @@ bool GdxWindowVisible(const char* name) {
 
 // A "Coming soon" roadmap line: a greyed, non-interactive entry naming a planned feature.
 void GdxComingSoon(const char* label) {
-    ImGui::TextDisabled("%s  -  Coming soon", label);
+    ImGui::TextDisabled(GdxTr("%s  -  Coming soon"), label);
 }
 
 // Marks the item just submitted as differing from its stock default (the SoH "modified" cue). Call
@@ -197,7 +198,7 @@ void GdxModifiedMarker(bool changed) {
     }
     ImGui::SameLine();
     ImGui::TextColored(ImVec4(0.63f, 0.76f, 1.0f, 1.0f), "*");
-    UIWidgets::Tooltip("Changed from the default (stock) value.");
+    UIWidgets::Tooltip(GdxTr("Changed from the default (stock) value."));
 }
 
 // Opens a filesystem directory in the host file browser (Workshop "Open ... folder" buttons). The
@@ -219,9 +220,10 @@ const ImVec4 kGdxBlueHovered = ImVec4(0.055f, 0.31f, 0.96f, 1.0f);
 const ImVec4 kGdxBlueActive = ImVec4(0.025f, 0.18f, 0.67f, 1.0f);
 
 void GdxPushModernStyle() {
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14.0f, 12.0f));
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10.0f, 7.0f));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 7.0f));
+    const float k = GdxUiScale();
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14.0f * k, 12.0f * k));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10.0f * k, 7.0f * k));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f * k, 7.0f * k));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
@@ -244,6 +246,15 @@ void GdxPushModernStyle() {
     ImGui::PushStyleColor(ImGuiCol_HeaderActive, kGdxBlueActive);
     ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.63f, 0.65f, 0.72f, 0.65f));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.25f, 0.27f, 0.34f, 0.85f));
+}
+
+// Finger scrolling: dragging on a pane (not on a control being used) scrolls it, as on a phone.
+void GdxTouchScroll() {
+    if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) || ImGui::IsAnyItemActive() ||
+        !ImGui::IsMouseDragging(ImGuiMouseButton_Left, 8.0f * GdxUiScale())) {
+        return;
+    }
+    ImGui::SetScrollY(ImGui::GetScrollY() - ImGui::GetIO().MouseDelta.y);
 }
 
 void GdxPopModernStyle() {
@@ -296,12 +307,12 @@ bool GdxArchiveMounted(const char* basename) {
 }
 
 void GdxDrawDataAndFilesPanel() {
-    if (!ImGui::CollapsingHeader("Data & Files")) {
+    if (!ImGui::CollapsingHeader(GdxTr("Data & Files"))) {
         return; // collapsed by default -- this is diagnostic detail, not a control most players need
     }
     ImGui::TextWrapped(
-        "What G-Diffuser currently has on disk for the three original setup inputs, and which of "
-        "them are safe to delete once setup has completed.");
+        "%s", GdxTr("What G-Diffuser currently has on disk for the three original setup inputs, and which of "
+        "them are safe to delete once setup has completed."));
     ImGui::Spacing();
 
     // The working directory is the data directory: gdx_firstboot.cpp's FirstBootRun chdirs there at
@@ -319,19 +330,19 @@ void GdxDrawDataAndFilesPanel() {
 
     // gdx_rom_buffer non-null means the raw cartridge image is resident THIS session -- the one row
     // here with a true "in use" fact rather than an inference.
-    ImGui::SeparatorText("F-Zero X ROM (.z64)");
+    ImGui::SeparatorText(GdxTr("F-Zero X ROM (.z64)"));
     if (gdx_rom_buffer != nullptr) {
-        ImGui::TextColored(kGdxWarn, "In use from: %s", gdx_rom_path[0] != '\0' ? gdx_rom_path : "(unknown path)");
+        ImGui::TextColored(kGdxWarn, GdxTr("In use from: %s"), gdx_rom_path[0] != '\0' ? gdx_rom_path : "(unknown path)");
     } else {
-        ImGui::TextColored(kGdxOk, "Not loaded -- served from the game archive this session.");
+        ImGui::TextColored(kGdxOk, "%s", GdxTr("Not loaded -- served from the game archive this session."));
     }
     ImGui::TextDisabled(
-        "Deletable once setup has completed and Archive coverage below reads 0 fallbacks across a "
-        "full play session.");
+        "%s", GdxTr("Deletable once setup has completed and Archive coverage below reads 0 fallbacks across a "
+        "full play session."));
 
     // disk_buffer.cpp exposes no "which source is loaded" getter, so this reports the two
     // independently-checkable facts: is the original file present, and is the archive mounted.
-    ImGui::SeparatorText("64DD IPL ROM (N64DDIPLROM.n64)");
+    ImGui::SeparatorText(GdxTr("64DD IPL ROM (N64DDIPLROM.n64)"));
     {
         std::error_code ec;
         bool iplFilePresent =
@@ -343,24 +354,24 @@ void GdxDrawDataAndFilesPanel() {
         bool iplArchivePresent = std::filesystem::is_regular_file(dataDir / "n64ddipl.o2r", ec);
         ec.clear();
         bool iplArchiveMounted = GdxArchiveMounted("n64ddipl.o2r");
-        ImGui::Text("Original file: %s", iplFilePresent ? "present" : "not present");
-        ImGui::Text("Archive (n64ddipl.o2r): %s",
+        ImGui::Text(GdxTr("Original file: %s"), iplFilePresent ? "present" : "not present");
+        ImGui::Text(GdxTr("Archive (n64ddipl.o2r): %s"),
                     iplArchiveMounted ? "mounted"
                     : iplArchivePresent ? "present (mounts on next launch)"
                                         : "not present");
         if (!iplFilePresent && iplArchiveMounted) {
-            ImGui::TextColored(kGdxOk, "Served from the archive.");
+            ImGui::TextColored(kGdxOk, "%s", GdxTr("Served from the archive."));
         } else if (!iplFilePresent && iplArchivePresent && !iplArchiveMounted) {
-            ImGui::TextColored(kGdxWarn, "Archive generated -- restart G-Diffuser to mount it.");
+            ImGui::TextColored(kGdxWarn, "%s", GdxTr("Archive generated -- restart G-Diffuser to mount it."));
         } else if (!iplFilePresent && !iplArchivePresent) {
-            ImGui::TextColored(kGdxBad, "Neither the file nor the archive is present -- do not delete anything here.");
+            ImGui::TextColored(kGdxBad, "%s", GdxTr("Neither the file nor the archive is present -- do not delete anything here."));
         }
     }
-    ImGui::TextDisabled("Deletable once setup has completed (the port never reads the IPL file again after that).");
+    ImGui::TextDisabled("%s", GdxTr("Deletable once setup has completed (the port never reads the IPL file again after that)."));
 
     // The "deletable" line is shown ONLY on a passed deletion-gate verdict
     // (gdx_disk_archive_verified); otherwise the panel never suggests deletion.
-    ImGui::SeparatorText("Expansion Kit disk (.ndd)");
+    ImGui::SeparatorText(GdxTr("Expansion Kit disk (.ndd)"));
     {
         std::error_code ec;
         bool diskFilePresent =
@@ -375,37 +386,37 @@ void GdxDrawDataAndFilesPanel() {
         ec.clear();
         bool diskArchiveMounted = GdxArchiveMounted("fzerox-disk.o2r");
         bool archiveVerified = gdx_disk_archive_verified() != 0;
-        ImGui::Text("Original file: %s", diskFilePresent ? "present" : "not present");
+        ImGui::Text(GdxTr("Original file: %s"), diskFilePresent ? "present" : "not present");
         if (managedPresent) {
-            ImGui::Text("Managed copy (media/): present (legacy, no longer used)");
+            ImGui::Text("%s", GdxTr("Managed copy (media/): present (legacy, no longer used)"));
         }
-        ImGui::Text("Archive (fzerox-disk.o2r): %s",
+        ImGui::Text(GdxTr("Archive (fzerox-disk.o2r): %s"),
                     diskArchiveMounted ? "mounted"
                     : diskArchivePresent ? "present (mounts on next launch)"
                                          : "not present");
         if (archiveVerified) {
             ImGui::TextColored(kGdxOk,
-                               "Disk archive: verified byte-identical -- the original disk is deletable.");
+                               "%s", GdxTr("Disk archive: verified byte-identical -- the original disk is deletable."));
         } else if (diskArchiveMounted && !diskFilePresent) {
-            ImGui::TextColored(kGdxOk, "Served from the archive.");
+            ImGui::TextColored(kGdxOk, "%s", GdxTr("Served from the archive."));
         } else if (diskArchivePresent && !diskArchiveMounted) {
-            ImGui::TextColored(kGdxWarn, "Archive generated -- restart G-Diffuser to mount it.");
+            ImGui::TextColored(kGdxWarn, "%s", GdxTr("Archive generated -- restart G-Diffuser to mount it."));
         } else if (!diskArchivePresent) {
-            ImGui::TextColored(kGdxBad, "No archive yet -- do NOT delete the original disk.");
+            ImGui::TextColored(kGdxBad, "%s", GdxTr("No archive yet -- do NOT delete the original disk."));
         }
     }
     ImGui::TextDisabled(
-        "The original .ndd is deletable ONLY after the row above reads \"verified byte-identical\" "
+        "%s", GdxTr("The original .ndd is deletable ONLY after the row above reads \"verified byte-identical\" "
         "(a boot reconstructed the disk from the archive and proved it matches). Your saves live "
-        "in saves/*.gdd -- back those up regardless.");
+        "in saves/*.gdd -- back those up regardless."));
 
     ImGui::Spacing();
-    ImGui::SeparatorText("Archive coverage");
+    ImGui::SeparatorText(GdxTr("Archive coverage"));
     unsigned int fallbackTotal = gdx_segment_source_fallback_total();
     if (fallbackTotal == 0) {
-        ImGui::TextColored(kGdxOk, "Raw-ROM fallback reads this session: 0");
+        ImGui::TextColored(kGdxOk, "%s", GdxTr("Raw-ROM fallback reads this session: 0"));
     } else {
-        ImGui::TextColored(kGdxWarn, "Raw-ROM fallback reads this session: %u", fallbackTotal);
+        ImGui::TextColored(kGdxWarn, GdxTr("Raw-ROM fallback reads this session: %u"), fallbackTotal);
         ImFont* monoFont = GdxGuiFontMono(); // gdx_gui.h -- optional bundled mono font, null-safe
         if (monoFont != nullptr) {
             ImGui::PushFont(monoFont);
@@ -425,7 +436,7 @@ void GdxDrawDataAndFilesPanel() {
             ImGui::PopFont();
         }
     }
-    ImGui::TextDisabled("Run with GDX_STRICT_ARCHIVE=1 during a soak to log every raw-ROM fallback.");
+    ImGui::TextDisabled("%s", GdxTr("Run with GDX_STRICT_ARCHIVE=1 during a soak to log every raw-ROM fallback."));
 }
 
 } // namespace gdxmenu
@@ -716,6 +727,14 @@ void GdxMenu::InitElement() {
         mRegistered = true;
         RegisterDisableReasons();
         RegisterMenu();
+        Localize();
+#ifdef __ANDROID__
+        // Handhelds: a pad is the main input, so pad navigation starts on.
+        if (CVarGetInteger("gControlNav", -1) == -1) {
+            CVarSetInteger("gControlNav", 1);
+            GdxSaveCvars();
+        }
+#endif
     }
 
     // Restore the last section by NAME, falling back to the first registered section when the
@@ -727,6 +746,83 @@ void GdxMenu::InitElement() {
         mActiveSection = mMenuOrder.front();
     }
 }
+
+// Swaps every registered label, tooltip, combo entry, note and disable reason for the active
+// language (gdx_i18n.h). Section and page names stay English internally (they key saved CVars) and
+// are translated where they are drawn.
+void GdxMenu::Localize() {
+    for (auto& [sectionName, section] : mMenuEntries) {
+        for (auto& [sidebarName, sidebar] : section.sidebars) {
+            for (auto& column : sidebar.columnWidgets) {
+                for (GdxUI::WidgetInfo& widget : column) {
+                    widget.name = GdxTr(widget.name);
+                    if (widget.options != nullptr) {
+                        widget.options->tooltip = GdxTr(widget.options->tooltip);
+                    }
+                    for (const char*& item : widget.comboItems) {
+                        item = GdxTr(item);
+                    }
+                    widget.note = GdxTr(widget.note);
+#ifdef __ANDROID__
+                    // A handheld pane is too narrow for a label beside a slider or dropdown: put
+                    // every label above its control.
+                    if (widget.options != nullptr) {
+                        switch (widget.type) {
+                            case GdxUI::WIDGET_COMBOBOX:
+                            case GdxUI::WIDGET_CVAR_COMBOBOX:
+                                std::static_pointer_cast<UIWidgets::ComboboxOptions>(widget.options)->labelPosition =
+                                    UIWidgets::LabelPositions::Above;
+                                break;
+                            case GdxUI::WIDGET_SLIDER_INT:
+                            case GdxUI::WIDGET_CVAR_SLIDER_INT:
+                                std::static_pointer_cast<UIWidgets::IntSliderOptions>(widget.options)->labelPosition =
+                                    UIWidgets::LabelPositions::Above;
+                                break;
+                            case GdxUI::WIDGET_SLIDER_FLOAT:
+                            case GdxUI::WIDGET_CVAR_SLIDER_FLOAT:
+                                std::static_pointer_cast<UIWidgets::FloatSliderOptions>(widget.options)->labelPosition =
+                                    UIWidgets::LabelPositions::Above;
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+#endif
+                }
+            }
+        }
+    }
+    for (GdxUI::DisabledInfo& info : mDisabledInfo) {
+        info.reason = GdxTr(info.reason);
+    }
+}
+
+#ifdef __ANDROID__
+// Pages and controls that do nothing on a handheld: mouse and window handling, Discord, desktop
+// audio backends and the developer debugging tools.
+static bool GdxAndroidHides(const std::string& section, const std::string& sidebar, const std::string& widget) {
+    if (section == "Online") {
+        return true;
+    }
+    static const char* const kPages[][2] = {
+        { "Enhancements", "Mouse" }, { "Dev Tools", "General" }, { "Dev Tools", "Console" },
+        { "Dev Tools", "Gfx Debugger" }, { "Workshop", "Tools" },
+    };
+    for (const auto& page : kPages) {
+        if (section == page[0] && sidebar == page[1]) {
+            return true;
+        }
+    }
+    static const char* const kWidgets[] = { "Fullscreen", "Output backend", "Applies on restart.",
+                                            "Open or close this menu with F1, Escape, or Gamepad Back." };
+    for (const char* name : kWidgets) {
+        if (widget == name) {
+            return true;
+        }
+    }
+    return false;
+}
+#endif
 
 void GdxMenu::UpdateElement() {
     // Gui::DrawMenu calls this before it draws the registered windows, and always on the ImGui
@@ -844,15 +940,19 @@ void GdxMenu::DrawElement() {
                                         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
     if (ImGui::Begin("G-Diffuser Menu##Modern", nullptr, outerFlags)) {
         const ImVec2 available = ImGui::GetContentRegionAvail();
+        // Layout sizes below are desktop pixels; k scales them to this screen (gdx_gui.h).
+        const float k = GdxUiScale();
         ImVec2 menuSize = available;
-        if (available.x > 1280.0f) {
+#ifndef __ANDROID__ // a handheld screen is small enough to use all of it
+        if (available.x > 1280.0f * k) {
             menuSize.x = (std::min)(available.x * 0.90f, available.y * 1.78f);
         }
-        if (available.y > 800.0f) {
+        if (available.y > 800.0f * k) {
             menuSize.y = available.y * 0.90f;
         }
-        menuSize.x = (std::max)(menuSize.x, (std::min)(available.x, 640.0f));
-        menuSize.y = (std::max)(menuSize.y, (std::min)(available.y, 480.0f));
+#endif
+        menuSize.x = (std::max)(menuSize.x, (std::min)(available.x, 640.0f * k));
+        menuSize.y = (std::max)(menuSize.y, (std::min)(available.y, 480.0f * k));
 
         ImGui::SetCursorPos((available - menuSize) * 0.5f);
         // NavFlattened on the block + sidebar + content children: ImGui nav cannot cross a
@@ -864,9 +964,10 @@ void GdxMenu::DrawElement() {
             ImGui::Separator();
 
             const float bodyHeight = ImGui::GetContentRegionAvail().y;
-            const float sidebarWidth = menuSize.x > 1500.0f ? menuSize.x * 0.15f : 210.0f;
+            const float sidebarWidth = menuSize.x > 1500.0f * k ? menuSize.x * 0.15f : 230.0f * k;
             if (ImGui::BeginChild("##ModernSidebar", ImVec2(sidebarWidth, bodyHeight), ImGuiChildFlags_NavFlattened)) {
                 DrawSidebar();
+                GdxTouchScroll();
             }
             ImGui::EndChild();
 
@@ -883,7 +984,7 @@ void GdxMenu::DrawElement() {
                 if (GdxGuiFontLarge() != nullptr) {
                     ImGui::PushFont(GdxGuiFontLarge());
                 }
-                ImGui::TextUnformatted(mSearch[0] != '\0' ? "Search Results" : ActiveSidebar().c_str());
+                ImGui::TextUnformatted(mSearch[0] != '\0' ? GdxTr("Search Results") : GdxTr(ActiveSidebar()));
                 if (GdxGuiFontLarge() != nullptr) {
                     ImGui::PopFont();
                 }
@@ -894,6 +995,7 @@ void GdxMenu::DrawElement() {
                 // pane and after the page has laid out, because the control itself may have been
                 // drawn inside a non-scrolling column child. Screen-space Y is converted back to
                 // this window's scroll space, then centred.
+                GdxTouchScroll();
                 if (mHighlightScrollPending && mHighlightScreenY != 0.0f) {
                     const float local = mHighlightScreenY - ImGui::GetWindowPos().y + ImGui::GetScrollY();
                     ImGui::SetScrollY(local - ImGui::GetWindowHeight() * 0.5f);
@@ -958,7 +1060,8 @@ void GdxMenu::DrawHeader() {
 
     const float height = ImGui::GetFrameHeight() + 4.0f;
     const float controlsWidth = ImGui::GetFrameHeight() * 3.0f + ImGui::GetStyle().ItemSpacing.x * 2.0f;
-    const float searchWidth = ImGui::GetContentRegionAvail().x >= 900.0f ? 210.0f : 140.0f;
+    const float k = GdxUiScale();
+    const float searchWidth = ImGui::GetContentRegionAvail().x >= 900.0f * k ? 210.0f * k : 140.0f * k;
 
     if (ImGui::BeginTable("##ModernHeader", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoPadOuterX)) {
         ImGui::TableSetupColumn("Navigation", ImGuiTableColumnFlags_WidthStretch);
@@ -976,14 +1079,14 @@ void GdxMenu::DrawHeader() {
             if (navActive) {
                 ImGui::AlignTextToFramePadding();
                 ImGui::TextDisabled(ICON_FA_CHEVRON_LEFT " LB");
-                UIWidgets::Tooltip("Previous tab (L1 / LB)");
+                UIWidgets::Tooltip(GdxTr("Previous tab (L1 / LB)"));
             }
             for (int i = 0; i < tabCount; ++i) {
                 if (i > 0 || navActive) {
                     ImGui::SameLine();
                 }
-                const char* label = mMenuOrder[i].c_str();
-                const ImVec2 buttonSize(ImGui::CalcTextSize(label).x + 20.0f, ImGui::GetFrameHeight());
+                const char* label = GdxTr(mMenuOrder[i]);
+                const ImVec2 buttonSize(ImGui::CalcTextSize(label).x + 20.0f * k, ImGui::GetFrameHeight());
                 if (GdxNavigationButton(label, mActiveSection == mMenuOrder[i], buttonSize)) {
                     mSearch[0] = '\0';
                     SelectSection(mMenuOrder[i]);
@@ -993,14 +1096,14 @@ void GdxMenu::DrawHeader() {
                 ImGui::SameLine();
                 ImGui::AlignTextToFramePadding();
                 ImGui::TextDisabled("RB " ICON_FA_CHEVRON_RIGHT);
-                UIWidgets::Tooltip("Next tab (R1 / RB)");
+                UIWidgets::Tooltip(GdxTr("Next tab (R1 / RB)"));
             }
         }
         ImGui::EndChild();
 
         ImGui::TableSetColumnIndex(1);
         ImGui::SetNextItemWidth(-1.0f);
-        ImGui::InputTextWithHint("##MenuSearch", "Search...", mSearch, sizeof(mSearch));
+        ImGui::InputTextWithHint("##MenuSearch", GdxTr("Search..."), mSearch, sizeof(mSearch));
 
         ImGui::TableSetColumnIndex(2);
         const ImVec2 actionSize(ImGui::GetFrameHeight(), ImGui::GetFrameHeight());
@@ -1009,14 +1112,14 @@ void GdxMenu::DrawHeader() {
         if (ImGui::Button(ICON_FA_POWER_OFF "##Quit", actionSize)) {
             mOpenQuitModal = true;
         }
-        UIWidgets::Tooltip("Quit G-Diffuser");
+        UIWidgets::Tooltip(GdxTr("Quit G-Diffuser"));
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_UNDO "##Reset", actionSize)) {
             // The menu is already on the host side of the bridge, so request the reset directly.
             // Ctrl+R goes through the console command; both converge on the same deferred flag.
             gdx_game_request_reset();
         }
-        UIWidgets::Tooltip("Reset game (Ctrl+R)");
+        UIWidgets::Tooltip(GdxTr("Reset game (Ctrl+R)"));
         ImGui::PopStyleColor(2);
         ImGui::SameLine();
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.31f, 0.32f, 0.35f, 1.0f));
@@ -1025,7 +1128,7 @@ void GdxMenu::DrawHeader() {
             Hide();
         }
         ImGui::PopStyleColor(2);
-        UIWidgets::Tooltip("Close menu (Esc or F1)");
+        UIWidgets::Tooltip(GdxTr("Close menu (Esc or F1)"));
         ImGui::EndTable();
     }
 }
@@ -1042,7 +1145,7 @@ void GdxMenu::DrawSidebar() {
         if (wantFocus && isActive) {
             ImGui::SetKeyboardFocusHere();
         }
-        if (GdxNavigationButton(sidebar.c_str(), isActive, ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+        if (GdxNavigationButton(GdxTr(sidebar), isActive, ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
             mSearch[0] = '\0';
             SelectSidebar(sidebar);
         }
@@ -1068,7 +1171,7 @@ void GdxMenu::DrawSidebar() {
 void GdxMenu::DrawCurrentPage() {
     if (mSearch[0] != '\0') {
         if (DrawSearchResults() == 0) {
-            ImGui::TextDisabled("No settings or tools match \"%s\".", mSearch);
+            ImGui::TextDisabled(GdxTr("No settings or tools match \"%s\"."), mSearch);
         }
         return;
     }
@@ -1085,7 +1188,7 @@ void GdxMenu::DrawCurrentPage() {
     }
     // 420px per column is the width below which this menu's widest controls (a slider with its
     // label positioned Near, or a combobox sized to its longest entry) start truncating.
-    while (columns > 1 && available / static_cast<float>(columns) < 420.0f) {
+    while (columns > 1 && available / static_cast<float>(columns) < 420.0f * GdxUiScale()) {
         --columns;
     }
 
@@ -1147,15 +1250,15 @@ uint32_t GdxMenu::DrawSearchResults() {
             }
             ++matches;
             ImGui::PushID(("page_" + sectionName + sidebarName).c_str());
-            if (ImGui::Button(sidebarName.c_str(),
-                              ImVec2((std::min)(430.0f, ImGui::GetContentRegionAvail().x), 0.0f))) {
+            if (ImGui::Button(GdxTr(sidebarName),
+                              ImVec2((std::min)(430.0f * GdxUiScale(), ImGui::GetContentRegionAvail().x), 0.0f))) {
                 mSearch[0] = '\0';
                 mActiveSection = sectionName;
                 CVarSetString("gSettings.Menu.ActiveSection", mActiveSection.c_str());
                 SelectSidebar(sidebarName);
             }
             ImGui::SameLine();
-            ImGui::TextDisabled("%s", sectionName.c_str());
+            ImGui::TextDisabled("%s", GdxTr(sectionName));
             ImGui::PopID();
         }
     }
@@ -1208,12 +1311,13 @@ uint32_t GdxMenu::DrawSearchResults() {
                     }
 
                     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-                    const std::string origin = "  " ICON_FA_ARROW_RIGHT "  " + sectionName + " -> " + sidebarName +
+                    const std::string origin = "  " ICON_FA_ARROW_RIGHT "  " + std::string(GdxTr(sectionName)) + " -> " +
+                                               GdxTr(sidebarName) +
                                                ", Col " + std::to_string(col + 1);
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.57f, 0.64f, 1.0f));
                     const bool go = ImGui::Button(origin.c_str());
                     ImGui::PopStyleColor(2);
-                    UIWidgets::Tooltip("Go to this setting on its own page.");
+                    UIWidgets::Tooltip(GdxTr("Go to this setting on its own page."));
                     if (go) {
                         mNavigateRequested = true;
                         mNavigateSection = sectionName;
@@ -1231,15 +1335,15 @@ uint32_t GdxMenu::DrawSearchResults() {
 
 void GdxMenu::DrawQuitModal() {
     if (mOpenQuitModal) {
-        ImGui::OpenPopup("Quit G-Diffuser");
+        ImGui::OpenPopup(GdxTr("Quit G-Diffuser"));
         mOpenQuitModal = false;
     }
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    if (ImGui::BeginPopupModal("Quit G-Diffuser", nullptr,
+    if (ImGui::BeginPopupModal(GdxTr("Quit G-Diffuser"), nullptr,
                                ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
-        ImGui::TextUnformatted("Are you sure you want to quit G-Diffuser?");
+        ImGui::TextUnformatted(GdxTr("Are you sure you want to quit G-Diffuser?"));
         ImGui::Spacing();
-        if (ImGui::Button("Quit", ImVec2(90.0f, 0.0f))) {
+        if (ImGui::Button(GdxTr("Quit"), ImVec2(90.0f, 0.0f))) {
             Hide();
             if (auto window = GdxWindow()) {
                 window->Close();
@@ -1247,7 +1351,7 @@ void GdxMenu::DrawQuitModal() {
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancel", ImVec2(90.0f, 0.0f)) ||
+        if (ImGui::Button(GdxTr("Cancel"), ImVec2(90.0f, 0.0f)) ||
             ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)) {
             ImGui::CloseCurrentPopup();
         }
@@ -1307,6 +1411,11 @@ GdxUI::SidebarEntry* GdxMenu::ActiveSidebarEntry() {
 }
 
 void GdxMenu::AddMenuEntry(const std::string& label, const char* sidebarCvar) {
+#ifdef __ANDROID__
+    if (GdxAndroidHides(label, "", "")) {
+        return;
+    }
+#endif
     GdxUI::MainMenuEntry entry;
     entry.label = label;
     entry.sidebarCvar = sidebarCvar;
@@ -1316,6 +1425,11 @@ void GdxMenu::AddMenuEntry(const std::string& label, const char* sidebarCvar) {
 
 void GdxMenu::AddSidebarEntry(const std::string& section, const std::string& sidebar, uint32_t columnCount,
                               const std::string& searchTerms) {
+#ifdef __ANDROID__
+    if (GdxAndroidHides(section, sidebar, "")) {
+        return;
+    }
+#endif
     auto it = mMenuEntries.find(section);
     if (it == mMenuEntries.end()) {
         return;
@@ -1332,6 +1446,11 @@ void GdxMenu::AddSidebarEntry(const std::string& section, const std::string& sid
 
 void GdxMenu::AddWidget(const std::string& section, const std::string& sidebar, GdxUI::SectionColumns column,
                         GdxUI::WidgetInfo widget) {
+#ifdef __ANDROID__
+    if (GdxAndroidHides(section, sidebar, widget.name)) {
+        return;
+    }
+#endif
     auto sectionIt = mMenuEntries.find(section);
     if (sectionIt == mMenuEntries.end()) {
         return;
@@ -1629,23 +1748,23 @@ void GdxMenu::DrawAudioStatus() {
     const int32_t buffered = AudioPlayerBuffered();
     const int32_t desired = AudioPlayerGetDesiredBuffered();
 
-    ImGui::SeparatorText("Output status");
+    ImGui::SeparatorText(GdxTr("Output status"));
     if (isSdl) {
-        ImGui::Text("Active backend: SDL (%s)", sdlDriver != nullptr ? sdlDriver : "no driver");
+        ImGui::Text(GdxTr("Active backend: SDL (%s)"), sdlDriver != nullptr ? sdlDriver : "no driver");
     } else {
-        ImGui::Text("Active backend: %s", backend);
+        ImGui::Text(GdxTr("Active backend: %s"), backend);
     }
-    ImGui::Text("Queued samples: %d / %d desired", buffered, desired);
+    ImGui::Text(GdxTr("Queued samples: %d / %d desired"), buffered, desired);
 
     // Only meaningful when SDL is the active backend: WASAPI/CoreAudio legitimately report no SDL
     // driver, so warning about it there would be a false alarm.
     if (isSdl && sdlDriver == nullptr) {
         ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.35f, 1.0f),
-                           "No SDL audio device is open. Audio is synthesized but discarded.");
+                           "%s", GdxTr("No SDL audio device is open. Audio is synthesized but discarded."));
     } else if (isSdl && std::strcmp(sdlDriver, "dummy") == 0) {
         ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.35f, 1.0f),
-                           "SDL fell back to the dummy driver: this launch environment has no\n"
-                           "audio socket. Launch from a terminal or fix the launcher's env.");
+                           "%s", GdxTr("SDL fell back to the dummy driver: this launch environment has no\n"
+                           "audio socket. Launch from a terminal or fix the launcher's env."));
     }
 }
 
@@ -1657,13 +1776,13 @@ void GdxMenu::DrawAudioStatus() {
 // A custom block rather than two WIDGET_BUTTONs: the pair shares a status buffer and a resolved
 // path that both branches format into, and the export tooltip interpolates that path.
 void GdxMenu::DrawGhostIo() {
-    ImGui::TextDisabled("Ghost replay (.gdg)");
+    ImGui::TextDisabled("%s", GdxTr("Ghost replay (.gdg)"));
 
     static char sGhostStatus[192] = { 0 };
     char path[1024];
     bool haveDefault = gdx_ghost_default_path(path, sizeof(path)) != 0;
 
-    if (ImGui::Button("Export saved ghost")) {
+    if (ImGui::Button(GdxTr("Export saved ghost"))) {
         if (!haveDefault) {
             snprintf(sGhostStatus, sizeof(sGhostStatus), "Export failed: could not resolve output path.");
         } else {
@@ -1680,7 +1799,7 @@ void GdxMenu::DrawGhostIo() {
     // Raw SetTooltip rather than UIWidgets::Tooltip: that runs every tooltip through WrappedText at
     // 80 columns, which would break this path at the spaces inside it.
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Writes the currently-saved ghost replay to:\n%s",
+        ImGui::SetTooltip(GdxTr("Writes the currently-saved ghost replay to:\n%s"),
                           haveDefault ? path : "(unavailable)");
     }
 
@@ -1690,7 +1809,7 @@ void GdxMenu::DrawGhostIo() {
     // states why. The "(disabled in-race)" label stays too, because it is visible without hovering.
     const bool inGame = mDisabledInfo[GdxUI::DISABLE_FOR_RACE_IN_PROGRESS].active;
     ImGui::BeginDisabled(inGame);
-    if (ImGui::Button("Import ghost")) {
+    if (ImGui::Button(GdxTr("Import ghost"))) {
         if (!haveDefault) {
             snprintf(sGhostStatus, sizeof(sGhostStatus), "Import failed: could not resolve input path.");
         } else {
@@ -1714,7 +1833,7 @@ void GdxMenu::DrawGhostIo() {
     }
     if (inGame) {
         ImGui::SameLine();
-        ImGui::TextDisabled("(disabled in-race)");
+        ImGui::TextDisabled("%s", GdxTr("(disabled in-race)"));
     }
 
     if (sGhostStatus[0] != '\0') {
@@ -1732,29 +1851,29 @@ void GdxMenu::DrawXCupSeed() {
     char cupCodes[256];
 
     if (gdx_xcup_current_seed_code(current, sizeof(current))) {
-        ImGui::Text("Last generated X Cup course: %s", current);
+        ImGui::Text(GdxTr("Last generated X Cup course: %s"), current);
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("Share this code and the other player gets the exact same track.");
+            ImGui::SetTooltip("%s", GdxTr("Share this code and the other player gets the exact same track."));
         }
         ImGui::SameLine();
-        if (ImGui::SmallButton("Copy")) {
+        if (ImGui::SmallButton(GdxTr("Copy"))) {
             ImGui::SetClipboardText(current);
             snprintf(sSeedStatus, sizeof(sSeedStatus), "Copied to clipboard.");
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("Copy this seed code to the clipboard.");
+            ImGui::SetTooltip("%s", GdxTr("Copy this seed code to the clipboard."));
         }
     } else {
-        ImGui::TextDisabled("Race an X Cup course once to see its seed code here.");
+        ImGui::TextDisabled("%s", GdxTr("Race an X Cup course once to see its seed code here."));
     }
 
     ImGui::Separator();
-    ImGui::TextWrapped("Paste X Cup codes, one per line. Each newly generated X Cup course takes the next code in the queue.");
+    ImGui::TextWrapped("%s", GdxTr("Paste X Cup codes, one per line. Each newly generated X Cup course takes the next code in the queue."));
     ImGui::InputTextMultiline("##xcupqueue", sQueueInput, sizeof(sQueueInput), ImVec2(420.0f, 90.0f));
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Type or paste the codes here, one per line. Add them with Add to queue.");
+        ImGui::SetTooltip("%s", GdxTr("Type or paste the codes here, one per line. Add them with Add to queue."));
     }
-    if (ImGui::Button("Add to queue")) {
+    if (ImGui::Button(GdxTr("Add to queue"))) {
         int added = 0;
         int rejected = 0;
         gdx_xcup_queue_add_text(sQueueInput, &added, &rejected);
@@ -1773,23 +1892,23 @@ void GdxMenu::DrawXCupSeed() {
         }
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("One code per line. Spaces, commas and semicolons also separate codes.");
+        ImGui::SetTooltip("%s", GdxTr("One code per line. Spaces, commas and semicolons also separate codes."));
     }
     ImGui::SameLine();
-    if (ImGui::Button("Clear queue")) {
+    if (ImGui::Button(GdxTr("Clear queue"))) {
         gdx_xcup_queue_clear();
         snprintf(sSeedStatus, sizeof(sSeedStatus), "Queue cleared.");
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Remove every code from the queue.");
+        ImGui::SetTooltip("%s", GdxTr("Remove every code from the queue."));
     }
 
     const int queued = gdx_xcup_queue_count();
     int removeIndex = -1;
     ImGui::Separator();
-    ImGui::Text("Queue: %d of %d", queued, GDX_XCUP_QUEUE_CAPACITY);
+    ImGui::Text(GdxTr("Queue: %d of %d"), queued, GDX_XCUP_QUEUE_CAPACITY);
     if (queued == 0) {
-        ImGui::TextDisabled("Empty. Each X Cup course is random until codes are queued.");
+        ImGui::TextDisabled("%s", GdxTr("Empty. Each X Cup course is random until codes are queued."));
     } else {
         ImGui::BeginChild("##xcupqueuelist", ImVec2(0.0f, 130.0f));
         for (int i = 0; i < queued; i++) {
@@ -1800,11 +1919,11 @@ void GdxMenu::DrawXCupSeed() {
                 ImGui::Text("%2d. %s", i + 1, code);
             }
             ImGui::SameLine();
-            if (ImGui::SmallButton("Remove")) {
+            if (ImGui::SmallButton(GdxTr("Remove"))) {
                 removeIndex = i;
             }
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Remove this code from the queue.");
+                ImGui::SetTooltip("%s", GdxTr("Remove this code from the queue."));
             }
             ImGui::PopID();
         }
@@ -1816,7 +1935,7 @@ void GdxMenu::DrawXCupSeed() {
     }
 
     ImGui::Separator();
-    if (ImGui::Button("Copy this cup's codes")) {
+    if (ImGui::Button(GdxTr("Copy this cup's codes"))) {
         const int copied = gdx_xcup_cup_codes(cupCodes, sizeof(cupCodes));
         if (copied > 0) {
             ImGui::SetClipboardText(cupCodes);
@@ -1826,7 +1945,7 @@ void GdxMenu::DrawXCupSeed() {
         }
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("One line per course, in course order. Queue them to replay this cup.");
+        ImGui::SetTooltip("%s", GdxTr("One line per course, in course order. Queue them to replay this cup."));
     }
     if (sSeedStatus[0] != '\0') {
         ImGui::TextWrapped("%s", sSeedStatus);
@@ -1837,7 +1956,7 @@ void GdxMenu::DrawToolWindowPage(const char* name, const char* description) {
     auto gui = GdxGui();
     auto window = gui != nullptr ? gui->GetGuiWindow(name) : nullptr;
     if (window == nullptr) {
-        ImGui::TextDisabled("%s is unavailable.", name);
+        ImGui::TextDisabled(GdxTr("%s is unavailable."), name);
         return;
     }
 
@@ -1850,7 +1969,7 @@ void GdxMenu::DrawToolWindowPage(const char* name, const char* description) {
     }
     ImGui::Separator();
     if (window->IsVisible()) {
-        ImGui::TextDisabled("%s is open in a separate window.", name);
+        ImGui::TextDisabled(GdxTr("%s is open in a separate window."), name);
     } else {
         window->DrawElement();
     }
@@ -1863,11 +1982,11 @@ void GdxMenu::DrawInterpStats() {
     if (gdx_gfx_interp_host_active() == 0) {
         return;
     }
-    ImGui::SeparatorText("Frame Interpolation");
+    ImGui::SeparatorText(GdxTr("Frame Interpolation"));
     if (gdx_gfx_interp_tick_active() == 0) {
         // The toggle is on but main.cpp forced interpolation off this tick, so the numbers below
         // are from before the editor was entered. Show the paused truth instead of stale figures.
-        ImGui::TextDisabled("Interpolation paused (editor active)");
+        ImGui::TextDisabled("%s", GdxTr("Interpolation paused (editor active)"));
     } else {
         const double presentedFps = gdx_gfx_interp_presents_per_sec();
         const float imguiFps = ImGui::GetIO().Framerate;
@@ -1877,13 +1996,13 @@ void GdxMenu::DrawInterpStats() {
         // The presents/s meter is bridge-measured; fall back to ImGui's rate until the first
         // window fills.
         const double shownFps = (presentedFps > 0.0) ? presentedFps : static_cast<double>(imguiFps);
-        ImGui::Text("Presented: %.0f fps (sim 60 Hz)", shownFps);
-        ImGui::Text("Sub-frames/tick (M): %d", m);
+        ImGui::Text(GdxTr("Presented: %.0f fps (sim 60 Hz)"), shownFps);
+        ImGui::Text(GdxTr("Sub-frames/tick (M): %d"), m);
         if (lerped == 0) {
             ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.20f, 1.0f),
-                               "Interpolated slots: 0 (no tween - snapping every tick)");
+                               "%s", GdxTr("Interpolated slots: 0 (no tween - snapping every tick)"));
         } else {
-            ImGui::Text("Interpolated slots: %d   Snapped: %d", lerped, snapped);
+            ImGui::Text(GdxTr("Interpolated slots: %d   Snapped: %d"), lerped, snapped);
         }
     }
     ImGui::Separator();
@@ -1896,10 +2015,10 @@ void GdxMenu::DrawTexturePacks() {
     const ImVec4 kRed = ImVec4(0.90f, 0.25f, 0.25f, 1.0f);
 
     std::vector<GdxWorkshopPackInfo> packs = GdxWorkshopListPacks();
-    ImGui::TextDisabled("%d override(s) available across mounted packs.", GdxWorkshopOverrideCount());
+    ImGui::TextDisabled(GdxTr("%d override(s) available across mounted packs."), GdxWorkshopOverrideCount());
 
     if (packs.empty()) {
-        ImGui::TextDisabled("No packs found. Drop .o2r packs into the mods/ folder.");
+        ImGui::TextDisabled("%s", GdxTr("No packs found. Drop .o2r packs into the mods/ folder."));
     } else if (ImGui::BeginTable("##WorkshopPacks", 4,
                                  ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                                      ImGuiTableFlags_SizingStretchProp)) {
@@ -1924,7 +2043,7 @@ void GdxMenu::DrawTexturePacks() {
                 // The archive set is mounted once, so this takes effect on the next Reload or boot.
                 GdxWorkshopSetPackDisabled(p.id.c_str(), p.basename.c_str(), enabled ? 0 : 1);
             }
-            UIWidgets::Tooltip("Enable or disable this pack. Takes effect on the next Reload or boot.");
+            UIWidgets::Tooltip(GdxTr("Enable or disable this pack. Takes effect on the next Reload or boot."));
 
             ImGui::TableSetColumnIndex(1);
             // Rows are listed in mount-priority order (see GdxWorkshopListPacks), so a move rewrites
@@ -1950,18 +2069,18 @@ void GdxMenu::DrawTexturePacks() {
                 GdxWorkshopSetPackOrder(joined.c_str());
             };
             ImGui::BeginDisabled(row == 0);
-            if (ImGui::SmallButton("Up")) {
+            if (ImGui::SmallButton(GdxTr("Up"))) {
                 movePack(-1);
             }
             ImGui::EndDisabled();
             ImGui::SameLine();
             ImGui::BeginDisabled(row + 1 >= packs.size());
-            if (ImGui::SmallButton("Dn")) {
+            if (ImGui::SmallButton(GdxTr("Dn"))) {
                 movePack(1);
             }
             ImGui::EndDisabled();
-            UIWidgets::Tooltip("Move this pack up/down in mount priority (rewrites the PackOrder\n"
-                               "list). Takes effect on the next Reload or boot.");
+            UIWidgets::Tooltip(GdxTr("Move this pack up/down in mount priority (rewrites the PackOrder\n"
+                               "list). Takes effect on the next Reload or boot."));
 
             ImGui::TableSetColumnIndex(2);
             ImGui::TextUnformatted(p.basename.c_str());
@@ -1971,16 +2090,16 @@ void GdxMenu::DrawTexturePacks() {
 
             ImGui::TableSetColumnIndex(3);
             if (p.manifestPresent) {
-                ImGui::Text("v%s by %s", p.version.empty() ? "?" : p.version.c_str(),
+                ImGui::Text(GdxTr("v%s by %s"), p.version.empty() ? "?" : p.version.c_str(),
                             p.author.empty() ? "?" : p.author.c_str());
                 if (!p.id.empty() && p.id != p.basename) {
-                    ImGui::TextDisabled("id: %s", p.id.c_str());
+                    ImGui::TextDisabled(GdxTr("id: %s"), p.id.c_str());
                 }
                 if (p.gameVersionMismatch) {
-                    ImGui::TextColored(kRed, "game_version mismatch (%s)", p.gameVersion.c_str());
+                    ImGui::TextColored(kRed, GdxTr("game_version mismatch (%s)"), p.gameVersion.c_str());
                 }
                 if (p.keySchemeMismatch) {
-                    ImGui::TextColored(kRed, "key_scheme_version mismatch (%s)", p.keySchemeVersion.c_str());
+                    ImGui::TextColored(kRed, GdxTr("key_scheme_version mismatch (%s)"), p.keySchemeVersion.c_str());
                 }
                 auto joinTokens = [](const std::vector<std::string>& tokens) {
                     std::string joined;
@@ -1993,30 +2112,30 @@ void GdxMenu::DrawTexturePacks() {
                     return joined;
                 };
                 if (!p.missingDepends.empty()) {
-                    ImGui::TextColored(kRed, "missing dependency: %s", joinTokens(p.missingDepends).c_str());
+                    ImGui::TextColored(kRed, GdxTr("missing dependency: %s"), joinTokens(p.missingDepends).c_str());
                 }
                 if (!p.activeConflicts.empty()) {
-                    ImGui::TextColored(kRed, "conflicts with: %s", joinTokens(p.activeConflicts).c_str());
+                    ImGui::TextColored(kRed, GdxTr("conflicts with: %s"), joinTokens(p.activeConflicts).c_str());
                 }
             } else {
-                ImGui::TextDisabled("(no manifest.json)");
+                ImGui::TextDisabled("%s", GdxTr("(no manifest.json)"));
             }
             ImGui::PopID();
         }
         ImGui::EndTable();
-        ImGui::TextDisabled("Packs mount in the order listed above; later packs win per-file.");
+        ImGui::TextDisabled("%s", GdxTr("Packs mount in the order listed above; later packs win per-file."));
     }
 
-    if (ImGui::Button("Reload packs")) {
+    if (ImGui::Button(GdxTr("Reload packs"))) {
         GdxWorkshopReload(sReloadStatus, sizeof(sReloadStatus));
     }
-    UIWidgets::Tooltip("Re-scans mods/, re-mounts packs, and clears the texture cache so edits\n"
-                       "appear without restarting.");
+    UIWidgets::Tooltip(GdxTr("Re-scans mods/, re-mounts packs, and clears the texture cache so edits\n"
+                       "appear without restarting."));
     ImGui::SameLine();
-    if (ImGui::Button("Open mods folder")) {
+    if (ImGui::Button(GdxTr("Open mods folder"))) {
         GdxOpenFolder(GdxWorkshopModsDir(true));
     }
-    UIWidgets::Tooltip("Open the mods/ folder in your file browser (created if absent).");
+    UIWidgets::Tooltip(GdxTr("Open the mods/ folder in your file browser (created if absent)."));
     if (sReloadStatus[0] != '\0') {
         ImGui::TextDisabled("%s", sReloadStatus);
     }
@@ -2029,13 +2148,13 @@ void GdxMenu::DrawScripts() {
     const ImVec4 kRed = ImVec4(0.90f, 0.25f, 0.25f, 1.0f);
 
     if (!gdx_lua_enabled()) {
-        ImGui::TextDisabled("Script packs are off. Tick \"Enable Lua script packs\" to scan mods/*.o2r.");
+        ImGui::TextDisabled("%s", GdxTr("Script packs are off. Tick \"Enable Lua script packs\" to scan mods/*.o2r."));
         return;
     }
 
     const int count = GdxLuaScriptCount();
     if (count == 0) {
-        ImGui::TextDisabled("No scripts found. Packs provide them as scripts/*.lua inside the .o2r.");
+        ImGui::TextDisabled("%s", GdxTr("No scripts found. Packs provide them as scripts/*.lua inside the .o2r."));
         return;
     }
 
@@ -2059,14 +2178,14 @@ void GdxMenu::DrawScripts() {
             ImGui::TextUnformatted(info.name);
             ImGui::TableSetColumnIndex(2);
             if (info.errored) {
-                ImGui::TextColored(kRed, "error: %s", info.error);
+                ImGui::TextColored(kRed, GdxTr("error: %s"), info.error);
             } else {
-                ImGui::TextDisabled("ok");
+                ImGui::TextDisabled("%s", GdxTr("ok"));
             }
             ImGui::PopID();
         }
         ImGui::EndTable();
-        ImGui::TextDisabled("Errored scripts are disabled until the next Reload packs.");
+        ImGui::TextDisabled("%s", GdxTr("Errored scripts are disabled until the next Reload packs."));
     }
 }
 
@@ -2089,9 +2208,9 @@ void GdxMenu::DrawAssetDump() {
     static bool sProbeKicked = (gdx::GdxDumpBeginClassListProbe(sDumpEnv), true);
     (void)sProbeKicked;
 
-    ImGui::TextWrapped("Decode named assets straight from the extracted archive - no gameplay "
+    ImGui::TextWrapped("%s", GdxTr("Decode named assets straight from the extracted archive - no gameplay "
                        "needed. Runs the bundled dump tool once per selected class; results land "
-                       "in dump/ (same place as the runtime texture dump).");
+                       "in dump/ (same place as the runtime texture dump)."));
     if (!sDumpEnv.available) {
         ImGui::TextDisabled("%s", sDumpEnv.reason.c_str());
     }
@@ -2115,7 +2234,7 @@ void GdxMenu::DrawAssetDump() {
         }
         ImGui::EndTable();
     }
-    if (ImGui::Button("Dump selected")) {
+    if (ImGui::Button(GdxTr("Dump selected"))) {
         std::vector<std::string> selected;
         for (const auto& cls : dumpClasses) {
             std::string cvarKey = "gEnhancements.Workshop.DumpClass." + cls;
@@ -2126,7 +2245,7 @@ void GdxMenu::DrawAssetDump() {
         gdx::GdxDumpStartBatch(sDumpEnv, selected, GdxWorkshopDumpDir(true));
     }
     ImGui::SameLine();
-    if (ImGui::Button("Dump everything")) {
+    if (ImGui::Button(GdxTr("Dump everything"))) {
         gdx::GdxDumpStartBatch(sDumpEnv, dumpClasses, GdxWorkshopDumpDir(true));
     }
     ImGui::EndDisabled();
@@ -2134,39 +2253,39 @@ void GdxMenu::DrawAssetDump() {
     // Cancel is cooperative: it stops AFTER the current class finishes.
     ImGui::SameLine();
     ImGui::BeginDisabled(!running || snap.cancelRequested);
-    if (ImGui::Button("Cancel")) {
+    if (ImGui::Button(GdxTr("Cancel"))) {
         gdx::GdxDumpRequestCancel();
     }
     ImGui::EndDisabled();
-    UIWidgets::Tooltip("Stops after the current class finishes. The running class is left to "
-                       "complete cleanly - no child process is killed.");
+    UIWidgets::Tooltip(GdxTr("Stops after the current class finishes. The running class is left to "
+                       "complete cleanly - no child process is killed."));
 
     for (const auto& p : snap.classes) {
         std::string pretty = gdx::GdxDumpPrettyName(p.name);
         switch (p.phase) {
         case gdx::DumpPhase::Queued:
-            ImGui::TextDisabled("%s: queued", pretty.c_str());
+            ImGui::TextDisabled(GdxTr("%s: queued"), pretty.c_str());
             break;
         case gdx::DumpPhase::Running: {
             const char spin[] = {'|', '/', '-', '\\'};
-            ImGui::Text("%s: running %c", pretty.c_str(),
+            ImGui::Text(GdxTr("%s: running %c"), pretty.c_str(),
                         spin[static_cast<int>(ImGui::GetTime() * 4.0) & 3]);
             break;
         }
         case gdx::DumpPhase::Done:
             if (p.itemsDumped >= 0) {
-                ImGui::Text("%s: done - %d item(s) in %.1fs", pretty.c_str(), p.itemsDumped,
+                ImGui::Text(GdxTr("%s: done - %d item(s) in %.1fs"), pretty.c_str(), p.itemsDumped,
                             p.elapsedSeconds);
             } else {
-                ImGui::Text("%s: done - %.1fs", pretty.c_str(), p.elapsedSeconds);
+                ImGui::Text(GdxTr("%s: done - %.1fs"), pretty.c_str(), p.elapsedSeconds);
             }
             break;
         case gdx::DumpPhase::Failed:
-            ImGui::TextColored(kRed, "%s: FAILED (exit %d) %s", pretty.c_str(), p.exitCode,
+            ImGui::TextColored(kRed, GdxTr("%s: FAILED (exit %d) %s"), pretty.c_str(), p.exitCode,
                                p.lastLine.c_str());
             break;
         default:
-            ImGui::TextDisabled("%s: idle", pretty.c_str());
+            ImGui::TextDisabled(GdxTr("%s: idle"), pretty.c_str());
             break;
         }
     }
@@ -2174,39 +2293,39 @@ void GdxMenu::DrawAssetDump() {
         ImGui::TextDisabled("%s", snap.summary.c_str());
     }
 
-    if (ImGui::Button("Open dump folder")) {
+    if (ImGui::Button(GdxTr("Open dump folder"))) {
         GdxOpenFolder(GdxWorkshopDumpDir(true));
     }
-    UIWidgets::Tooltip("Open the dump/ folder in your file browser (created if absent).");
+    UIWidgets::Tooltip(GdxTr("Open the dump/ folder in your file browser (created if absent)."));
 }
 
 // 64DD durable-save sidecar status and the one-shot format authorization modal.
 void GdxMenu::DrawDdSave() {
     const ImVec4 kRed = ImVec4(0.90f, 0.25f, 0.25f, 1.0f);
 
-    ImGui::Text("Sidecar: %s", gdx_disk_sidecar_present() ? "present" : "none yet");
-    ImGui::Text("Journal records: %d", gdx_disk_sidecar_record_count());
-    ImGui::Text("Last flush: %s", gdx_disk_last_flush_ok() ? "ok" : "FAILED");
+    ImGui::Text(GdxTr("Sidecar: %s"), gdx_disk_sidecar_present() ? "present" : "none yet");
+    ImGui::Text(GdxTr("Journal records: %d"), gdx_disk_sidecar_record_count());
+    ImGui::Text(GdxTr("Last flush: %s"), gdx_disk_last_flush_ok() ? "ok" : "FAILED");
     if (gdx_disk_format_refused_this_boot()) {
-        ImGui::TextColored(kRed, "The disk's MFS save area is uninitialized.");
-        if (ImGui::Button("Initialize DD save area")) {
+        ImGui::TextColored(kRed, "%s", GdxTr("The disk's MFS save area is uninitialized."));
+        if (ImGui::Button(GdxTr("Initialize DD save area"))) {
             ImGui::OpenPopup("##ddformat");
         }
-        UIWidgets::Tooltip("Authorizes a one-time format of the 64DD MFS save area on the NEXT boot.");
+        UIWidgets::Tooltip(GdxTr("Authorizes a one-time format of the 64DD MFS save area on the NEXT boot."));
         if (ImGui::BeginPopupModal("##ddformat", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::TextUnformatted(
-                "Initialize the 64DD MFS save area?\n\n"
+                GdxTr("Initialize the 64DD MFS save area?\n\n"
                 "This authorizes a one-time format the NEXT time the game boots. The format is\n"
                 "written to the durable save sidecar only -- your original .ndd disk file is never\n"
-                "modified. This is needed before Course Edit / Machine Create can save to disk.");
+                "modified. This is needed before Course Edit / Machine Create can save to disk."));
             ImGui::Separator();
-            if (ImGui::Button("Authorize (next boot)")) {
+            if (ImGui::Button(GdxTr("Authorize (next boot)"))) {
                 CVarSetInteger("gEnhancements.Workshop.AllowDDFormatOnce", 1);
                 GdxSaveCvars();
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)) {
+            if (ImGui::Button(GdxTr("Cancel")) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)) {
                 ImGui::CloseCurrentPopup();
             }
             // Default-park focus on Cancel, not the format authorization.
@@ -2264,18 +2383,18 @@ void GdxMenu::DrawDevToolButtons() {
 // A toggle writes the CVar, schedules the config save, and calls gdx_dev_gates_refresh() so the
 // change lands on the CURRENT frame: the frame loop's own refresh already ran before the menu drew.
 void GdxMenu::DrawDevGates() {
-    ImGui::SeparatorText("Developer gates");
-    ImGui::TextWrapped("These replace the port's GDX_* environment variables. Changes apply "
+    ImGui::SeparatorText(GdxTr("Developer gates"));
+    ImGui::TextWrapped("%s", GdxTr("These replace the port's GDX_* environment variables. Changes apply "
                        "immediately and persist in gdiffuser.cfg.json. A variable exported at "
-                       "launch still works and is marked below.");
+                       "launch still works and is marked below."));
 
     // Confirmed rather than immediate: this discards every gate across all three sections at once
     // with no undo, and one stray click would cost someone their whole bisect setup.
-    if (ImGui::Button("Reset all gates to defaults")) {
+    if (ImGui::Button(GdxTr("Reset all gates to defaults"))) {
         ImGui::OpenPopup("##resetgates");
     }
-    UIWidgets::Tooltip("Clears every gate back to stock. Gates pinned by an environment "
-                       "variable are unaffected until the next launch.");
+    UIWidgets::Tooltip(GdxTr("Clears every gate back to stock. Gates pinned by an environment "
+                       "variable are unaffected until the next launch."));
     if (ImGui::BeginPopupModal("##resetgates", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         int changed = 0;
         for (int id = 0; id < gdx_dev_gate_count(); ++id) {
@@ -2283,15 +2402,15 @@ void GdxMenu::DrawDevGates() {
                 ++changed;
             }
         }
-        ImGui::TextUnformatted("Reset every developer gate to its default?");
+        ImGui::TextUnformatted(GdxTr("Reset every developer gate to its default?"));
         ImGui::Separator();
         if (changed == 0) {
-            ImGui::TextDisabled("Nothing to reset - every gate is already at its default.");
+            ImGui::TextDisabled("%s", GdxTr("Nothing to reset - every gate is already at its default."));
         } else {
-            ImGui::Text("%d gate(s) will be turned back to stock. This cannot be undone.", changed);
+            ImGui::Text(GdxTr("%d gate(s) will be turned back to stock. This cannot be undone."), changed);
         }
         ImGui::Separator();
-        if (ImGui::Button("Reset")) {
+        if (ImGui::Button(GdxTr("Reset"))) {
             for (int id = 0; id < gdx_dev_gate_count(); ++id) {
                 CVarSetInteger(gdx_dev_gate_cvar_name(id), gdx_dev_gate_default(id));
             }
@@ -2300,7 +2419,7 @@ void GdxMenu::DrawDevGates() {
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape) ||
+        if (ImGui::Button(GdxTr("Cancel")) || ImGui::IsKeyPressed(ImGuiKey_Escape) ||
             ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)) {
             ImGui::CloseCurrentPopup();
         }
@@ -2321,28 +2440,28 @@ void GdxMenu::DrawDevGates() {
         // and no CVar read, so live checkboxes would be a lie. Say the section is excluded rather
         // than dropping it, which would read as "this build is broken".
         if (bucket == GDX_GATE_BUCKET_BEHAVIOR) {
-            ImGui::SeparatorText("Behavior overrides (not in this build)");
-            ImGui::TextDisabled("Compiled out of Release. These gates change what the game renders or\n"
+            ImGui::SeparatorText(GdxTr("Behavior overrides (not in this build)"));
+            ImGui::TextDisabled("%s", GdxTr("Compiled out of Release. These gates change what the game renders or\n"
                                 "how it sounds, and exist to bisect bugs rather than to play with.\n"
-                                "Configure with -DGDX_FORCE_DEV_TOOLS=ON to build them in.");
+                                "Configure with -DGDX_FORCE_DEV_TOOLS=ON to build them in."));
             continue;
         }
 #endif
         if (bucket == GDX_GATE_BUCKET_BOOT) {
-            ImGui::SeparatorText("Logging");
-            ImGui::TextWrapped("Read at startup from the saved setting, so enabling one here and "
-                               "restarting captures the next boot.");
+            ImGui::SeparatorText(GdxTr("Logging"));
+            ImGui::TextWrapped("%s", GdxTr("Read at startup from the saved setting, so enabling one here and "
+                               "restarting captures the next boot."));
         } else if (bucket == GDX_GATE_BUCKET_DIAG) {
-            ImGui::SeparatorText("Diagnostics");
-            ImGui::TextWrapped("Extra log output only. Safe to leave on; enable the Logging gates "
-                               "above so the lines reach gdiffuser-run.log.");
+            ImGui::SeparatorText(GdxTr("Diagnostics"));
+            ImGui::TextWrapped("%s", GdxTr("Extra log output only. Safe to leave on; enable the Logging gates "
+                               "above so the lines reach gdiffuser-run.log."));
         } else {
-            ImGui::SeparatorText("Behavior overrides (not for normal play)");
+            ImGui::SeparatorText(GdxTr("Behavior overrides (not for normal play)"));
             ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.30f, 1.0f),
-                               "WARNING: these change what the game renders or how it sounds. "
+                               "%s", GdxTr("WARNING: these change what the game renders or how it sounds. "
                                "They exist to bisect bugs, not to play with. Leave them off unless "
-                               "you are reproducing a specific issue.");
-            ImGui::TextDisabled("Debug builds only - this section is compiled out of a Release build.");
+                               "you are reproducing a specific issue."));
+            ImGui::TextDisabled("%s", GdxTr("Debug builds only - this section is compiled out of a Release build."));
         }
 
         for (int group = 0; group < GDX_GATE_GROUP_COUNT; ++group) {
@@ -2376,7 +2495,7 @@ void GdxMenu::DrawDevGates() {
                 // AllowWhenDisabled: ImGui otherwise suppresses hover on disabled items, so the one
                 // checkbox that refuses to move would also be the only one that never says why.
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-                    ImGui::SetTooltip("%s\n\nEnvironment: %s\nSetting: %s", gdx_dev_gate_help(id),
+                    ImGui::SetTooltip(GdxTr("%s\n\nEnvironment: %s\nSetting: %s"), gdx_dev_gate_help(id),
                                       gdx_dev_gate_env_name(id), gdx_dev_gate_cvar_name(id));
                 }
                 GdxModifiedMarker(value != (gdx_dev_gate_default(id) != 0));
@@ -2386,13 +2505,13 @@ void GdxMenu::DrawDevGates() {
                 // ...)" label that would be stale the moment the user ticked it.
                 if (pinned) {
                     ImGui::SameLine();
-                    ImGui::TextDisabled("(pinned ON by %s this run)", gdx_dev_gate_env_name(id));
+                    ImGui::TextDisabled(GdxTr("(pinned ON by %s this run)"), gdx_dev_gate_env_name(id));
                 } else if (bucket == GDX_GATE_BUCKET_BOOT) {
                     ImGui::SameLine();
-                    ImGui::TextDisabled("(applies to new output; restart to capture boot)");
+                    ImGui::TextDisabled("%s", GdxTr("(applies to new output; restart to capture boot)"));
                 } else if (gdx_dev_gate_from_env(id)) {
                     ImGui::SameLine();
-                    ImGui::TextDisabled("(started from %s)", gdx_dev_gate_env_name(id));
+                    ImGui::TextDisabled(GdxTr("(started from %s)"), gdx_dev_gate_env_name(id));
                 }
             }
         }
@@ -2400,15 +2519,15 @@ void GdxMenu::DrawDevGates() {
 
     // Bucket C stays environment-only: consumed before the console exists, or carrying a value
     // rather than a flag. Listed so this page is a complete map of the port's switches.
-    ImGui::SeparatorText("Environment only (no setting)");
-    ImGui::TextWrapped("Consumed before the settings system exists, or not a simple on/off:");
-    ImGui::BulletText("GDX_INPUT_SCRIPT - deterministic input playback for unattended tests");
-    ImGui::BulletText("FZEROX_ROM, GDX_STRICT_ARCHIVE, GDX_DUMP_SELFTEST - boot and tooling paths");
-    ImGui::BulletText("GDX_CAPTURE_FRAMES / GDX_CAPTURE_MODE / GDX_CAPTURE_WINDOW - \"start:count\" captures");
-    ImGui::BulletText("GDX_PCM_CAPTURE, GDX_PCM_CAPTURE_FRAMES - audio capture prefix and length");
-    ImGui::BulletText("GDX_RAND_SEED1 / GDX_RAND_SEED2 - RNG determinism pins (numeric seeds)");
-    ImGui::BulletText("GDX_SEED_BOOT_LOGO, GDX_AUDIO_THREAD, GDX_AI_CUSHION - decided before this menu exists");
-    ImGui::BulletText("GDX_INTERP_P1 / GDX_INTERP_P2 - interpolation test overrides (see Graphics)");
+    ImGui::SeparatorText(GdxTr("Environment only (no setting)"));
+    ImGui::TextWrapped("%s", GdxTr("Consumed before the settings system exists, or not a simple on/off:"));
+    ImGui::BulletText("%s", GdxTr("GDX_INPUT_SCRIPT - deterministic input playback for unattended tests"));
+    ImGui::BulletText("%s", GdxTr("FZEROX_ROM, GDX_STRICT_ARCHIVE, GDX_DUMP_SELFTEST - boot and tooling paths"));
+    ImGui::BulletText("%s", GdxTr("GDX_CAPTURE_FRAMES / GDX_CAPTURE_MODE / GDX_CAPTURE_WINDOW - \"start:count\" captures"));
+    ImGui::BulletText("%s", GdxTr("GDX_PCM_CAPTURE, GDX_PCM_CAPTURE_FRAMES - audio capture prefix and length"));
+    ImGui::BulletText("%s", GdxTr("GDX_RAND_SEED1 / GDX_RAND_SEED2 - RNG determinism pins (numeric seeds)"));
+    ImGui::BulletText("%s", GdxTr("GDX_SEED_BOOT_LOGO, GDX_AUDIO_THREAD, GDX_AI_CUSHION - decided before this menu exists"));
+    ImGui::BulletText("%s", GdxTr("GDX_INTERP_P1 / GDX_INTERP_P2 - interpolation test overrides (see Graphics)"));
 }
 
 // CMake supplies the release label; the fallback keeps standalone source builds identifiable.
@@ -2439,33 +2558,33 @@ void GdxMenu::DrawAboutMenu() {
         ImTextureID logo = (gui != nullptr) ? gui->GetTextureByName("gdx-logo") : nullptr;
         if (logo != nullptr) {
             // Source is 1024x324; the height below preserves that aspect.
-            const float w = std::min(420.0f, ImGui::GetContentRegionAvail().x);
+            const float w = std::min(420.0f * GdxUiScale(), ImGui::GetContentRegionAvail().x);
             const float h = w * (324.0f / 1024.0f);
             ImGui::Image(logo, ImVec2(w, h));
             logoDrawn = true;
         }
     }
     if (!logoDrawn) {
-        ImGui::Text("G-Diffuser");
+        ImGui::Text("%s", GdxTr("G-Diffuser"));
     }
-    ImGui::Text("Version %s", kGdxVersionString);
-    ImGui::TextDisabled("A native PC source port of F-Zero X (N64) + Expansion Kit (64DD)");
+    ImGui::Text(GdxTr("Version %s"), kGdxVersionString);
+    ImGui::TextDisabled("%s", GdxTr("A native PC source port of F-Zero X (N64) + Expansion Kit (64DD)"));
 
     ImGui::Separator();
 
-    ImGui::TextDisabled("Credits / licenses");
-    ImGui::BulletText("F-Zero X decompilation (inspectredc/fzerox) - CC0 1.0");
-    ImGui::BulletText("cxd4 RSP interpreter (Iconoclast) - CC0");
-    ImGui::BulletText("libultraship (fork of Kenix3/libultraship) - MIT");
-    ImGui::BulletText("Torch asset tool (HarbourMasters) - MIT");
-    ImGui::BulletText("StormLib (Ladislav Zezula) - MIT");
-    ImGui::BulletText("Dear ImGui (Omar Cornut) - MIT");
-    ImGui::BulletText("SDL2 (Sam Lantinga) - zlib");
-    ImGui::BulletText("Montserrat and Inconsolata fonts - SIL Open Font License 1.1");
-    ImGui::BulletText("Logo & icon artwork - Kiziio (github.com/Kiziio1)");
+    ImGui::TextDisabled("%s", GdxTr("Credits / licenses"));
+    ImGui::BulletText("%s", GdxTr("F-Zero X decompilation (inspectredc/fzerox) - CC0 1.0"));
+    ImGui::BulletText("%s", GdxTr("cxd4 RSP interpreter (Iconoclast) - CC0"));
+    ImGui::BulletText("%s", GdxTr("libultraship (fork of Kenix3/libultraship) - MIT"));
+    ImGui::BulletText("%s", GdxTr("Torch asset tool (HarbourMasters) - MIT"));
+    ImGui::BulletText("%s", GdxTr("StormLib (Ladislav Zezula) - MIT"));
+    ImGui::BulletText("%s", GdxTr("Dear ImGui (Omar Cornut) - MIT"));
+    ImGui::BulletText("%s", GdxTr("SDL2 (Sam Lantinga) - zlib"));
+    ImGui::BulletText("%s", GdxTr("Montserrat and Inconsolata fonts - SIL Open Font License 1.1"));
+    ImGui::BulletText("%s", GdxTr("Logo & icon artwork - Kiziio (github.com/Kiziio1)"));
 
     ImGui::Separator();
-    ImGui::TextDisabled("https://github.com/Zorkats/G-Diffuser");
+    ImGui::TextDisabled("%s", GdxTr("https://github.com/Zorkats/G-Diffuser"));
 
 }
 
@@ -2499,20 +2618,20 @@ void GdxMenu::DrawCourseEditKeybinds(GdxUI::WidgetInfo& widget) {
         }
     }
 
-    bool headerOpen = ImGui::CollapsingHeader("Course Edit tool keys", ImGuiTreeNodeFlags_DefaultOpen);
+    bool headerOpen = ImGui::CollapsingHeader(GdxTr("Course Edit tool keys"), ImGuiTreeNodeFlags_DefaultOpen);
     if (anyModified) {
         GdxModifiedMarker(true);
     }
     if (headerOpen) {
-        ImGui::TextDisabled("Click a row to rebind it. Esc cancels; Backspace/Delete resets.");
-        ImGui::TextDisabled("Naming: Direct physical keyboard typing. Esc cancels, Enter saves.");
-        ImGui::TextDisabled("Test Run: Click Test Run to drive; press Esc to pause / return.");
+        ImGui::TextDisabled("%s", GdxTr("Click a row to rebind it. Esc cancels; Backspace/Delete resets."));
+        ImGui::TextDisabled("%s", GdxTr("Naming: Direct physical keyboard typing. Esc cancels, Enter saves."));
+        ImGui::TextDisabled("%s", GdxTr("Test Run: Click Test Run to drive; press Esc to pause / return."));
         const char* conflictMsg = gdx_course_edit_mouse_key_conflict_msg();
         if (conflictMsg != nullptr) {
-            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "Rebind note: %s", conflictMsg);
+            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), GdxTr("Rebind note: %s"), conflictMsg);
         }
         if (CVarGetInteger("gEnhancements.Input.EditorKeybindsDebug", 0) != 0) {
-            ImGui::TextDisabled("Last key seen: %s", gdx_course_edit_mouse_last_key_name());
+            ImGui::TextDisabled(GdxTr("Last key seen: %s"), gdx_course_edit_mouse_last_key_name());
         }
         const float rowHeight = ImGui::GetFrameHeight();
         for (int i = 1; i <= 7; i++) {
@@ -2558,14 +2677,14 @@ void GdxMenu::DrawCourseEditKeybinds(GdxUI::WidgetInfo& widget) {
 
             if (hovered && activeCapture == 0) {
                 if (i == 6) {
-                    ImGui::SetTooltip("Click to rebind. In the editor, selects the point-deletion tool.\n"
+                    ImGui::SetTooltip(GdxTr("Click to rebind. In the editor, selects the point-deletion tool.\n"
                                       "In that tool, click a point to delete it at once.\n"
                                       "Drag on empty space to box select, then press Delete to remove them.\n"
-                                      "Esc cancels; Backspace/Delete restores default key.%s",
+                                      "Esc cancels; Backspace/Delete restores default key.%s"),
                                       isModified ? "\nThis slot is currently rebound." : "");
                 } else {
-                    ImGui::SetTooltip("Click, then press the key to use for %s.\n"
-                                      "Esc cancels; Backspace/Delete restores the default key.%s",
+                    ImGui::SetTooltip(GdxTr("Click, then press the key to use for %s.\n"
+                                      "Esc cancels; Backspace/Delete restores the default key.%s"),
                                       gdx_course_edit_action_name(i),
                                       isModified ? "\nThis slot is currently rebound." : "");
                 }

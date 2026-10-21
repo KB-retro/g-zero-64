@@ -272,6 +272,7 @@ set(GDX_MAIN_SOURCES
     gdx_gui.cpp
     gdx_menu.cpp
     gdx_menu_registry.cpp
+    gdx_i18n.cpp               # G-Zero 64: Spanish menu strings (gdx_i18n_es.inc)
     gdx_console_log.cpp
     ui/UIWidgets.cpp           # ported from HarbourMasters/Lighthouse, CC0 1.0
     enhancements/events/GameEvents.cpp      # REQUIRED even with every enhancement off: decomp
@@ -1091,6 +1092,7 @@ if(GDX_BUILD_JP)
         gdx_gui.cpp
         gdx_menu.cpp
         gdx_menu_registry.cpp
+        gdx_i18n.cpp
         gdx_console_log.cpp
         ui/UIWidgets.cpp
         enhancements/events/GameEvents.cpp

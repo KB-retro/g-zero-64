@@ -1,6 +1,7 @@
 #include "gdx_gui.h"
 
 #include <imgui.h>
+#include <SDL2/SDL.h>
 
 #include "ship/Context.h"
 #include "ship/window/gui/Fonts.h"
@@ -13,6 +14,8 @@ namespace {
 ImFont* sFontStandard = nullptr;
 ImFont* sFontLarge = nullptr;
 ImFont* sFontMono = nullptr;
+
+float sUiScale = 1.0f;
 
 ImFont* LoadFontWithIcons(const std::string& path, float size) {
     ImGuiIO& io = ImGui::GetIO();
@@ -42,10 +45,25 @@ void GdxFast3dGui::ImGuiWMInit() {
     // its first font-atlas upload.
     Fast::Fast3dGui::ImGuiWMInit();
 
+#ifdef __ANDROID__
+    // libultraship doubles the style and stretches the font bitmaps 2x on Android. Rasterize the
+    // fonts at the real size instead (sharp text) and rescale the style to this screen.
+    SDL_DisplayMode mode;
+    if (SDL_GetCurrentDisplayMode(0, &mode) == 0 && mode.h > 0) {
+        const int shortSide = mode.w < mode.h ? mode.w : mode.h;
+        sUiScale = static_cast<float>(shortSide) / 540.0f;
+        sUiScale = sUiScale < 1.5f ? 1.5f : (sUiScale > 3.0f ? 3.0f : sUiScale);
+    } else {
+        sUiScale = 2.0f;
+    }
+    ImGui::GetStyle().ScaleAllSizes(sUiScale / 2.0f);
+    ImGui::GetStyle().ScrollbarSize *= 1.5f; // a finger-sized scrollbar
+    ImGui::GetIO().FontGlobalScale = 1.0f;
+#endif
     const std::string fontRoot = Ship::Context::GetPathRelativeToAppDirectory("fonts/");
-    sFontStandard = LoadFontWithIcons(fontRoot + "Montserrat-Regular.ttf", 18.0f);
-    sFontLarge = LoadFontWithIcons(fontRoot + "Montserrat-Regular.ttf", 22.0f);
-    sFontMono = LoadFontWithIcons(fontRoot + "Inconsolata-Regular.ttf", 17.0f);
+    sFontStandard = LoadFontWithIcons(fontRoot + "Montserrat-Regular.ttf", 18.0f * sUiScale);
+    sFontLarge = LoadFontWithIcons(fontRoot + "Montserrat-Regular.ttf", 22.0f * sUiScale);
+    sFontMono = LoadFontWithIcons(fontRoot + "Inconsolata-Regular.ttf", 17.0f * sUiScale);
 
     // Missing loose assets must never block boot. ImGui's default font already includes Font
     // Awesome through libultraship, so it is a complete fallback.
@@ -70,6 +88,10 @@ void GdxFast3dGui::ImGuiWMNewFrame() {
     // the caller runs next: the feed both reads the backend's HasGamepad claim and queues key events
     // for this frame. See port/gdx_imgui_nav.h.
     gdx_imgui_nav_tick();
+}
+
+float GdxUiScale() {
+    return sUiScale;
 }
 
 ImFont* GdxGuiFontStandard() {

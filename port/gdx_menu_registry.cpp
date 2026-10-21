@@ -39,6 +39,7 @@
 #endif
 
 #include "gdx_menu.h"
+#include "gdx_i18n.h"
 #include "gdx_menu_internal.h"
 
 #include <imgui.h>
@@ -107,7 +108,7 @@ static void DrawContinueCupEntry() {
     if (!enabled) {
         ImGui::BeginDisabled();
     }
-    if (ImGui::Button("Continue Cup") && enabled) {
+    if (ImGui::Button(GdxTr("Continue Cup")) && enabled) {
         gdx_gp_resume_request_continue();
     }
     if (!enabled) {
@@ -244,11 +245,11 @@ void DrawMachinePaletteEditor() {
         DrawPaletteColorRow(sPaletteMachine, skin);
     }
 
-    if (ImGui::Button("Reset this machine")) {
+    if (ImGui::Button(GdxTr("Reset this machine"))) {
         GdxPalette_ClearMachine(sPaletteMachine);
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Removes all 4 color overrides for %s, restoring the stock colors.",
+        ImGui::SetTooltip(GdxTr("Removes all 4 color overrides for %s, restoring the stock colors."),
                           kMachineNames[sPaletteMachine]);
     }
 
@@ -256,7 +257,7 @@ void DrawMachinePaletteEditor() {
     if (sPalettePath[0] == '\0') {
         GdxPalette_GetFilePath(sPalettePath, sizeof(sPalettePath));
     }
-    ImGui::TextDisabled("Saved to %s", sPalettePath);
+    ImGui::TextDisabled(GdxTr("Saved to %s"), sPalettePath);
 }
 
 // F2b machine stat editor: per-machine body/boost/grip/weight overrides. Grade labels map 1:1 to
@@ -300,7 +301,7 @@ void DrawMachineStatsEditor() {
     }
 
     bool overrideEnabled = sStatsState.enabled != 0;
-    if (ImGui::Checkbox("Override stats for this machine", &overrideEnabled)) {
+    if (ImGui::Checkbox(GdxTr("Override stats for this machine"), &overrideEnabled)) {
         if (overrideEnabled) {
             sStatsState.enabled = 1;
             // Initialize from stock on first enable so the user starts from parity.
@@ -349,12 +350,12 @@ void DrawMachineStatsEditor() {
         ImGui::EndDisabled();
     }
 
-    if (ImGui::Button("Reset this machine to stock")) {
+    if (ImGui::Button(GdxTr("Reset this machine to stock"))) {
         GdxMachineStats_ClearMachine(sStatsMachine);
         sStatsLastMachine = -1;
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Removes the stat override for %s, restoring the stock stats.",
+        ImGui::SetTooltip(GdxTr("Removes the stat override for %s, restoring the stock stats."),
                           kMachineNames[sStatsMachine]);
     }
 
@@ -362,7 +363,7 @@ void DrawMachineStatsEditor() {
     if (sStatsPath[0] == '\0') {
         GdxMachineStats_GetFilePath(sStatsPath, sizeof(sStatsPath));
     }
-    ImGui::TextDisabled("Saved to %s", sStatsPath);
+    ImGui::TextDisabled(GdxTr("Saved to %s"), sStatsPath);
 
     ImGui::PopID();
 }
@@ -392,7 +393,7 @@ void DrawCustomGrid() {
     bool active = GdxCustomGrid_GetRoster(characters, skins) != 0;
     char roster[GDX_CUSTOM_GRID_STRING_MAX];
 
-    if (ImGui::Checkbox("Custom grid active", &active)) {
+    if (ImGui::Checkbox(GdxTr("Custom grid active"), &active)) {
         if (active) {
             for (int i = 0; i < GDX_CUSTOM_GRID_SLOTS; i++) {
                 characters[i] = GDX_CUSTOM_GRID_RANDOM;
@@ -406,18 +407,18 @@ void DrawCustomGrid() {
         CVarSave();
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Handpick the 29 AI opponents (machine + color) for Grand Prix,\n"
-                          "Practice and Death Race. Off = stock shuffled grid.");
+        ImGui::SetTooltip("%s", GdxTr("Handpick the 29 AI opponents (machine + color) for Grand Prix,\n"
+                          "Practice and Death Race. Off = stock shuffled grid."));
     }
     if (!active) {
         return;
     }
 
-    ImGui::TextDisabled("Slot order is the starting grid; slot 1 is pole position.");
+    ImGui::TextDisabled("%s", GdxTr("Slot order is the starting grid; slot 1 is pole position."));
     if (gPlayerCharacters[0] >= 0 && gPlayerCharacters[0] < GDX_CUSTOM_GRID_SLOTS) {
-        ImGui::TextDisabled(" 0. %s -- you (last selected machine)", kMachineNames[gPlayerCharacters[0]]);
+        ImGui::TextDisabled(GdxTr(" 0. %s -- you (last selected machine)"), kMachineNames[gPlayerCharacters[0]]);
     } else {
-        ImGui::TextDisabled(" 0. You (last selected machine)");
+        ImGui::TextDisabled("%s", GdxTr(" 0. You (last selected machine)"));
     }
 
     bool changed = false;
@@ -430,13 +431,13 @@ void DrawCustomGrid() {
         ImGui::SetNextItemWidth(150.0f);
         bool slotChanged = ImGui::Combo("##character", &charIndex, sGridCharNames, GDX_CUSTOM_GRID_SLOTS + 1);
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("Machine for this starting slot. Random lets the game choose.");
+            ImGui::SetTooltip("%s", GdxTr("Machine for this starting slot. Random lets the game choose."));
         }
         ImGui::SameLine();
         ImGui::SetNextItemWidth(90.0f);
         slotChanged |= ImGui::Combo("##skin", &skinIndex, kGridSkinNames, GDX_CUSTOM_GRID_SKIN_COUNT + 1);
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("Color for this slot's machine. Random lets the game choose.");
+            ImGui::SetTooltip("%s", GdxTr("Color for this slot's machine. Random lets the game choose."));
         }
         if (slotChanged) {
             characters[slot] = charIndex - 1;
@@ -446,7 +447,7 @@ void DrawCustomGrid() {
         ImGui::PopID();
     }
 
-    if (ImGui::Button("Set all slots to random")) {
+    if (ImGui::Button(GdxTr("Set all slots to random"))) {
         for (int i = 0; i < GDX_CUSTOM_GRID_SLOTS; i++) {
             characters[i] = GDX_CUSTOM_GRID_RANDOM;
             skins[i] = GDX_CUSTOM_GRID_RANDOM;
@@ -454,7 +455,7 @@ void DrawCustomGrid() {
         changed = true;
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Set every slot to a random machine and a random color.");
+        ImGui::SetTooltip("%s", GdxTr("Set every slot to a random machine and a random color."));
     }
 
     if (changed) {
@@ -553,12 +554,12 @@ void DrawInputActionTable(int context, const char* title, const char* scope, con
     ImGui::SameLine();
     ImGui::TextDisabled("%s", scope);
     ImGui::SameLine();
-    if (ImGui::Button("Reset to N64 default")) {
+    if (ImGui::Button(GdxTr("Reset to N64 default"))) {
         gdx_input_actions_reset_context(context);
         CVarSave();
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Every %s action goes back to its own N64 button.", title);
+        ImGui::SetTooltip(GdxTr("Every %s action goes back to its own N64 button."), title);
     }
 
     const ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollX;
@@ -572,7 +573,7 @@ void DrawInputActionTable(int context, const char* title, const char* scope, con
             ImGui::TableSetColumnIndex(col);
             ImGui::TableHeader(ImGui::TableGetColumnName(col));
             if (col > 0 && ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Input: %s", kActionInputColumns[col - 1].name);
+                ImGui::SetTooltip(GdxTr("Input: %s"), kActionInputColumns[col - 1].name);
             }
         }
 
@@ -587,7 +588,7 @@ void DrawInputActionTable(int context, const char* title, const char* scope, con
             }
             if (mask == 0) {
                 ImGui::SameLine();
-                ImGui::TextDisabled("(no input)");
+                ImGui::TextDisabled("%s", GdxTr("(no input)"));
             }
 
             for (int in = 0; in < GDX_INPUT_IN_COUNT; in++) {
@@ -622,7 +623,7 @@ void DrawInputProfileCombo() {
     const char* preview = match >= 0 ? gdx_input_profiles_name(match) : "Custom";
 
     ImGui::SetNextItemWidth(260.0f);
-    if (ImGui::BeginCombo("Profile##InputProfile", preview)) {
+    if (ImGui::BeginCombo(GdxTr("Profile##InputProfile"), preview)) {
         for (int i = 0; i < gdx_input_profiles_count(); i++) {
             ImGui::PushID(i);
             const bool selected = (i == match);
@@ -631,7 +632,7 @@ void DrawInputProfileCombo() {
                 CVarSave();
             }
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("%s\n\nLimitations: %s", gdx_input_profiles_description(i),
+                ImGui::SetTooltip(GdxTr("%s\n\nLimitations: %s"), gdx_input_profiles_description(i),
                                   gdx_input_profiles_limitations(i));
             }
             if (selected) {
@@ -640,26 +641,26 @@ void DrawInputProfileCombo() {
             ImGui::PopID();
         }
         if (match < 0) {
-            ImGui::Selectable("Custom", true, ImGuiSelectableFlags_Disabled);
+            ImGui::Selectable(GdxTr("Custom"), true, ImGuiSelectableFlags_Disabled);
         }
         ImGui::EndCombo();
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Presets for the Race table. Menu and Course Edit are not changed.");
+        ImGui::SetTooltip("%s", GdxTr("Presets for the Race table. Menu and Course Edit are not changed."));
     }
 }
 
 // Settings > Controls > Actions. The shell is data; this block is the whole page. The two-layer line
 // at the top is the page's explanation and is kept verbatim.
 void DrawInputActionsPage() {
-    ImGui::TextWrapped("Input Editor maps your controller to N64 buttons. This page decides what each N64 "
-                       "button does in races, Course Edit and menus.");
+    ImGui::TextWrapped("%s", GdxTr("Input Editor maps your controller to N64 buttons. This page decides what each N64 "
+                       "button does in races, Course Edit and menus."));
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Layer 1 is the Input Editor (controller to N64 button).\n"
+        ImGui::SetTooltip("%s", GdxTr("Layer 1 is the Input Editor (controller to N64 button).\n"
                           "Layer 2 is this page (N64 button to action).\n"
                           "Rows are actions. Checked columns are the N64 buttons that trigger them.\n"
                           "The X and Y columns are your gamepad's X and Y. The N64 has no such buttons,\n"
-                          "so they do nothing until a box in their column is checked.");
+                          "so they do nothing until a box in their column is checked."));
     }
     ImGui::Spacing();
     DrawInputProfileCombo();
@@ -680,10 +681,10 @@ void DrawInputActionsPage() {
 void DrawAchievements() {
     const uint64_t total = GdxAchievements_GetTotalPlaytimeSeconds();
     const uint64_t session = GdxAchievements_GetSessionPlaytimeSeconds();
-    ImGui::Text("Playtime: %llu h %02llu m total   (%llu m %02llu s this session)",
+    ImGui::Text(GdxTr("Playtime: %llu h %02llu m total   (%llu m %02llu s this session)"),
                 (unsigned long long)(total / 3600), (unsigned long long)((total / 60) % 60),
                 (unsigned long long)(session / 60), (unsigned long long)(session % 60));
-    ImGui::TextDisabled("Time with this menu open is not counted.");
+    ImGui::TextDisabled("%s", GdxTr("Time with this menu open is not counted."));
 
     const size_t count = GdxAchievements_Count();
     size_t unlockedCount = 0;
@@ -693,7 +694,7 @@ void DrawAchievements() {
             unlockedCount++;
         }
     }
-    ImGui::Text("Achievements: %zu / %zu unlocked", unlockedCount, count);
+    ImGui::Text(GdxTr("Achievements: %zu / %zu unlocked"), unlockedCount, count);
     ImGui::Spacing();
 
     for (size_t i = 0; i < count; i++) {
@@ -935,7 +936,7 @@ void DrawPostProcessCombo() {
                               ? sItems[selection]
                               : "Off";
     bool comboChanged = false;
-    if (ImGui::BeginCombo("Post-process pipeline", preview)) {
+    if (ImGui::BeginCombo(GdxTr("Post-process pipeline"), preview)) {
         // The list can hold a whole slang-shaders pack (~1600 presets); ImGui::Combo has no
         // clipper and would pay per-item widget cost every frame the popup is open.
         ImGuiListClipper clipper;
@@ -975,19 +976,19 @@ void DrawPostProcessCombo() {
                     CVarGetString("gEnhancements.Graphics.PostPipeline", ""));
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Post-process the frame with a shader pipeline. Built-ins downsample to\n"
+        ImGui::SetTooltip("%s", GdxTr("Post-process the frame with a shader pipeline. Built-ins downsample to\n"
                           "N64-native resolution first; .slangp presets anywhere under shaders/ run\n"
                           "multiple passes (nested folders show as category/preset), and loose\n"
-                          ".slang files in shaders/ run as one-pass presets.");
+                          ".slang files in shaders/ run as one-pass presets."));
     }
     ImGui::SameLine();
-    if (ImGui::SmallButton("Refresh list")) {
+    if (ImGui::SmallButton(GdxTr("Refresh list"))) {
         sScanRequested = true;
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Rescan the shaders/ folder. Only needed after dropping files into a\n"
+        ImGui::SetTooltip("%s", GdxTr("Rescan the shaders/ folder. Only needed after dropping files into a\n"
                           "nested folder by hand; pack downloads and new folders are picked up\n"
-                          "automatically.");
+                          "automatically."));
     }
 }
 
@@ -1099,7 +1100,7 @@ void DrawPipelinePassInfo() {
     };
 
     ImGui::Spacing();
-    ImGui::Text("Shader passes: %d", static_cast<int>(info.pipeline.passes.size()));
+    ImGui::Text(GdxTr("Shader passes: %d"), static_cast<int>(info.pipeline.passes.size()));
     ImGui::Separator();
     for (size_t i = 0; i < info.pipeline.passes.size(); ++i) {
         const Fast::GdxPostPassDesc& pass = info.pipeline.passes[i];
@@ -1123,7 +1124,7 @@ void DrawPipelineParameters() {
     }
 
     ImGui::Spacing();
-    ImGui::Text("Shader parameters");
+    ImGui::Text("%s", GdxTr("Shader parameters"));
     ImGui::Separator();
 
     const std::string cvarPrefix = "gEnhancements.Graphics.PipelineParam." + info.stem + ".";
@@ -1152,7 +1153,7 @@ void DrawPipelineParameters() {
                                        .LabelPosition(UIWidgets::LabelPositions::Near));
     }
 
-    if (ImGui::Button("Reset parameters to defaults")) {
+    if (ImGui::Button(GdxTr("Reset parameters to defaults"))) {
         // Per-key clears, not CVarClearBlock: ClearBlock triggers ConsoleVariable::Load(), which
         // rebuilds EVERY CVar from the config file and reverts anything set at runtime but not yet
         // saved — the "reset changed my other settings" report.
@@ -1162,7 +1163,7 @@ void DrawPipelineParameters() {
         CVarSave();
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Discards your edits and restores the preset's own values.");
+        ImGui::SetTooltip("%s", GdxTr("Discards your edits and restores the preset's own values."));
     }
 }
 
@@ -1179,7 +1180,7 @@ void DrawSavePipelinePreset() {
     static bool sFeedbackIsError = false;
 
     ImGui::Spacing();
-    ImGui::Text("Save custom preset");
+    ImGui::Text("%s", GdxTr("Save custom preset"));
     ImGui::Separator();
 
     std::string sanitized;
@@ -1196,12 +1197,12 @@ void DrawSavePipelinePreset() {
     }
 
     ImGui::SetNextItemWidth(240.0f);
-    ImGui::InputTextWithHint("##savepreset", "New preset name", sNameBuf, sizeof(sNameBuf));
+    ImGui::InputTextWithHint("##savepreset", GdxTr("New preset name"), sNameBuf, sizeof(sNameBuf));
     ImGui::SameLine();
     if (sanitized.empty()) {
         ImGui::BeginDisabled();
     }
-    if (ImGui::Button("Save##preset")) {
+    if (ImGui::Button(GdxTr("Save##preset"))) {
         const std::filesystem::path pipelineDir =
             std::filesystem::path(Ship::Context::GetAppDirectoryPath()) / "shaders" / "pipelines";
         std::error_code dirEc;
@@ -1327,6 +1328,12 @@ void GdxMenu::RegisterMenu() {
     // ═════════════════════════════════════════════════════════════════════════════════════════
     // SETTINGS -> General
     // ═════════════════════════════════════════════════════════════════════════════════════════
+    // G-Zero 64: menu language (gdx_i18n.h). Spanish by default; read once, so it applies on restart.
+    AddWidget("Settings", "General", SECTION_COLUMN_1,
+              WidgetInfo{ .name = "Idioma / Language", .cVar = "gGZ64.Language",
+                          .type = GdxUI::WIDGET_CVAR_COMBOBOX }
+                  .ComboItems({ "Español", "English" })
+                  .Note("(restart)"));
     AddWidget("Settings", "General", SECTION_COLUMN_1,
               WidgetInfo{ .name = "Menu Settings", .type = GdxUI::WIDGET_SEPARATOR_TEXT });
 
@@ -2149,7 +2156,7 @@ void GdxMenu::RegisterMenu() {
                   .CustomFunction([](WidgetInfo&) {
                       const int sub = gdx_gfx_interp_last_subframes();
                       const double t = gdx_gfx_interp_last_t();
-                      ImGui::TextDisabled("subframes last tick: %d (t=%.2f)", sub, t);
+                      ImGui::TextDisabled(GdxTr("subframes last tick: %d (t=%.2f)"), sub, t);
                   })
                   .HideWhen({ GdxUI::DISABLE_FOR_INTERPOLATION_OFF, GdxUI::DISABLE_FOR_INTERP_OVERLAY_OFF })
                   .HideInSearch()); // a read-out with no setting behind it; the toggle above is the control

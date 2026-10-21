@@ -34,6 +34,12 @@ public final class GameActivity extends SDLActivity {
         restoreFullscreen();
     }
 
+    /** SDL picks the orientation from the window flags; this game is landscape only. */
+    @Override
+    public void setOrientationBis(int w, int h, boolean resizable, String hint) {
+        setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+    }
+
     @Override
     protected String[] getLibraries() {
         return new String[] { "SDL2", "main" };

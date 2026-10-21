@@ -39,6 +39,7 @@ class GdxMenu final : public Ship::GuiWindow {
     // Called once from InitElement(). In its own translation unit because it is a long flat
     // declaration of every control, with no logic worth reading alongside the shell.
     void RegisterMenu();
+    void Localize();
     void RegisterDisableReasons();
 
     void AddMenuEntry(const std::string& label, const char* sidebarCvar);

@@ -17,6 +17,10 @@ class GdxFast3dGui final : public Fast::Fast3dGui {
     void ImGuiWMNewFrame() override;
 };
 
+// Size factor for the menu on this screen: 1 on desktop; on Android it follows the display
+// height (2 at 1080p), so text and touch targets keep a usable physical size.
+float GdxUiScale();
+
 ImFont* GdxGuiFontStandard();
 ImFont* GdxGuiFontLarge();
 ImFont* GdxGuiFontMono();

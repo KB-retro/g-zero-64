@@ -10,6 +10,7 @@
 // RunGuiOnly()/StartFrame()/EndFrame() are all pure-virtual on Ship::Window.
 
 #include "gdx_firstboot_gui.h"
+#include "gdx_i18n.h"
 
 #include "gdx_firstboot.h"       // validators, canonical names, copy/persist helpers, native picker
 #include "gdx_extract_launch.h"  // async extraction driver (start/poll/reset)
@@ -484,7 +485,7 @@ class SetupScreen {
         const ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
                                        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
                                        ImGuiWindowFlags_NoDocking;
-        if (!ImGui::Begin("G-Diffuser - First-Time Setup", nullptr, flags)) {
+        if (!ImGui::Begin(GdxTr("G-Diffuser - First-Time Setup##Setup"), nullptr, flags)) {
             ImGui::End();
             return;
         }
@@ -493,13 +494,13 @@ class SetupScreen {
         if (large != nullptr) {
             ImGui::PushFont(large);
         }
-        ImGui::TextUnformatted("Welcome to G-Diffuser");
+        ImGui::TextUnformatted(GdxTr("Welcome to G-Diffuser"));
         if (large != nullptr) {
             ImGui::PopFont();
         }
-        ImGui::TextWrapped("Review the three original files below. Files already next to the game are "
+        ImGui::TextWrapped("%s", GdxTr("Review the three original files below. Files already next to the game are "
                            "detected automatically, but nothing is installed until you confirm. Nothing "
-                           "is uploaded.");
+                           "is uploaded."));
         ImGui::Separator();
 
         switch (mPhase) {
@@ -522,26 +523,26 @@ class SetupScreen {
         for (int i = 0; i < 3; ++i) {
             Row& r = mRows[i];
             ImGui::PushID(i);
-            ImGui::SeparatorText(r.label);
+            ImGui::SeparatorText(GdxTr(r.label));
 
             switch (r.status) {
                 case RowStatus::Ok:
                     // okHeader replaces the file name: the EK disk region label, or the
                     // archive-satisfied message when the original is gone and its archive covers it.
-                    ImGui::TextColored(ImVec4(0.35f, 0.80f, 0.35f, 1.0f), "OK  (%s)",
-                                       r.okHeader.empty() ? r.canonicalName : r.okHeader.c_str());
+                    ImGui::TextColored(ImVec4(0.35f, 0.80f, 0.35f, 1.0f), GdxTr("OK  (%s)"),
+                                       GdxTr(r.okHeader.empty() ? r.canonicalName : r.okHeader.c_str()));
                     if (!r.warning.empty()) {
                         // Accepted but unrecognized dump: visible amber warning, row still passes.
-                        ImGui::TextColored(ImVec4(0.90f, 0.70f, 0.30f, 1.0f), "%s", r.warning.c_str());
+                        ImGui::TextColored(ImVec4(0.90f, 0.70f, 0.30f, 1.0f), "%s", GdxTr(r.warning));
                     }
                     break;
                 case RowStatus::Invalid:
-                    ImGui::TextColored(ImVec4(0.90f, 0.45f, 0.35f, 1.0f), "Invalid");
-                    ImGui::TextWrapped("Reason: %s", r.reason.c_str());
+                    ImGui::TextColored(ImVec4(0.90f, 0.45f, 0.35f, 1.0f), "%s", GdxTr("Invalid"));
+                    ImGui::TextWrapped(GdxTr("Reason: %s"), r.reason.c_str());
                     break;
                 case RowStatus::Missing:
                 default:
-                    ImGui::TextColored(ImVec4(0.85f, 0.70f, 0.35f, 1.0f), "Missing");
+                    ImGui::TextColored(ImVec4(0.85f, 0.70f, 0.35f, 1.0f), "%s", GdxTr("Missing"));
                     break;
             }
             // Show the path Recheck resolved (managed media/ copy, or the installed archive, when the
@@ -549,56 +550,56 @@ class SetupScreen {
             // hit as the deleted root file. Falls back to the canonical path before the first check.
             const std::string shownPath = r.resolvedPath.empty() ? RowPath(i) : r.resolvedPath;
             ImGui::PushTextWrapPos(0.0f);
-            ImGui::TextDisabled("File: %s", shownPath.c_str());
+            ImGui::TextDisabled(GdxTr("File: %s"), shownPath.c_str());
             ImGui::PopTextWrapPos();
             if (!r.detail.empty()) {
                 ImGui::TextDisabled("%s", r.detail.c_str());
             }
 
             if (NativeFilePickerAvailable()) {
-                if (ImGui::Button(r.status == RowStatus::Ok ? "Replace..." : "Browse...")) {
+                if (ImGui::Button(GdxTr(r.status == RowStatus::Ok ? "Replace..." : "Browse..."))) {
                     Browse(r);
                 }
                 ImGui::SameLine();
-                ImGui::TextDisabled("...or drag & drop the file onto this window");
+                ImGui::TextDisabled("%s", GdxTr("...or drag & drop the file onto this window"));
             } else {
-                ImGui::TextDisabled("Drag & drop the file onto this window");
+                ImGui::TextDisabled("%s", GdxTr("Drag & drop the file onto this window"));
             }
             ImGui::PopID();
         }
 
         ImGui::Separator();
         if (!mDropError.empty()) {
-            ImGui::TextColored(ImVec4(0.90f, 0.45f, 0.35f, 1.0f), "%s", mDropError.c_str());
+            ImGui::TextColored(ImVec4(0.90f, 0.45f, 0.35f, 1.0f), "%s", GdxTr(mDropError));
         }
         if (AllRowsOk()) {
-            ImGui::TextColored(ImVec4(0.35f, 0.80f, 0.35f, 1.0f), "All three files are verified.");
-            ImGui::TextWrapped("Confirm to build fzerox.o2r from your ROM and continue to the game.");
+            ImGui::TextColored(ImVec4(0.35f, 0.80f, 0.35f, 1.0f), "%s", GdxTr("All three files are verified."));
+            ImGui::TextWrapped("%s", GdxTr("Confirm to build fzerox.o2r from your ROM and continue to the game."));
             // The deletable-files statement names each file, so the reader never has to guess which
             // originals are safe to remove. A Japanese ROM needs the opposite statement: it boots RAW,
             // no fzerox.o2r is ever built for it, so that ROM file is the only copy of the game data.
             if (mRows[0].jpRom) {
                 ImGui::TextWrapped(
-                    "Japanese ROM install (experimental): KEEP the ROM file -- it stays required "
+                    "%s", GdxTr("Japanese ROM install (experimental): KEEP the ROM file -- it stays required "
                     "(no game-data archive is built for the Japanese version). The N64DD IPL ROM "
                     "and the Expansion Kit disk (.ndd) become deletable once their archives verify "
                     "(the green lines in Data & Files). Your saves live only in saves/*.gdd -- "
-                    "back up that folder to preserve your progress.");
+                    "back up that folder to preserve your progress."));
             } else {
                 ImGui::TextWrapped(
-                    "Once this finishes, none of your three original files are needed anymore: the "
+                    "%s", GdxTr("Once this finishes, none of your three original files are needed anymore: the "
                     "F-Zero X ROM (.z64), the N64DD IPL ROM, and the Expansion Kit disk (.ndd) are all "
                     "deletable. The disk is kept as a temporary managed copy in this folder's media/ "
                     "subfolder; after your next boot verifies the disk archive (the green line in "
                     "Data & Files), that copy is deletable too. Your saves live only in saves/*.gdd -- "
-                    "back up that folder to preserve your progress.");
+                    "back up that folder to preserve your progress."));
             }
             ImGui::Spacing();
-            if (ImGui::Button("Build game data and continue", ImVec2(-1.0f, 0.0f))) {
+            if (ImGui::Button(GdxTr("Build game data and continue"), ImVec2(-1.0f, 0.0f))) {
                 ConfirmAndStartExtraction();
             }
         } else {
-            ImGui::TextDisabled("Waiting for all three files.");
+            ImGui::TextDisabled("%s", GdxTr("Waiting for all three files."));
         }
     }
 
@@ -611,8 +612,8 @@ class SetupScreen {
         } else if (mSubStage == 2) {
             stageLabel = "Extracting IPL font data...";
         }
-        ImGui::TextUnformatted(stageLabel);
-        ImGui::TextWrapped("This happens once and usually takes only a few seconds.");
+        ImGui::TextUnformatted(GdxTr(stageLabel));
+        ImGui::TextWrapped("%s", GdxTr("This happens once and usually takes only a few seconds."));
         ImGui::Spacing();
 
         // Determinate only when a total is known (GDX_O2R_EXPECTED_ENTRY_COUNT for cart, the frozen
@@ -665,23 +666,23 @@ class SetupScreen {
     }
 
     void DrawExtractFailed() {
-        ImGui::TextColored(ImVec4(0.90f, 0.45f, 0.35f, 1.0f), "Asset extraction did not complete.");
-        ImGui::TextWrapped("%s", mError.empty()
+        ImGui::TextColored(ImVec4(0.90f, 0.45f, 0.35f, 1.0f), "%s", GdxTr("Asset extraction did not complete."));
+        ImGui::TextWrapped("%s", GdxTr(mError.empty()
                                        ? "Verify that gdx-extract and decomp-recipes are next to the game."
-                                       : mError.c_str());
-        ImGui::TextWrapped("You can continue with the raw ROM (assets are read directly, which is slower "
-                           "and less compatible), or retry the extraction.");
+                                       : mError.c_str()));
+        ImGui::TextWrapped("%s", GdxTr("You can continue with the raw ROM (assets are read directly, which is slower "
+                           "and less compatible), or retry the extraction."));
         ImGui::Spacing();
         // The log is the diagnostic detail a user or an issue report needs; keep it visible here.
         DrawLogView();
         ImGui::Separator();
-        if (ImGui::Button("Continue anyway (raw assets)")) {
+        if (ImGui::Button(GdxTr("Continue anyway (raw assets)"))) {
             // Boot with the raw-ROM fallback: no archive mounted, ROM path already installed.
             gdx_port_logf("[setup] user chose to continue with the raw-ROM fallback\n");
             mPhase = Phase::Done;
         }
         ImGui::SameLine();
-        if (ImGui::Button("Retry")) {
+        if (ImGui::Button(GdxTr("Retry"))) {
             gdx_port_logf("[setup] user requested extraction retry\n");
             StartExtraction();
         }

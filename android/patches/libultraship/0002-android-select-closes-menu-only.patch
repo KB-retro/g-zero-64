@@ -1,0 +1,18 @@
+diff --git a/src/ship/window/gui/Gui.cpp b/src/ship/window/gui/Gui.cpp
+index 9aeaf53..33cd72f 100644
+--- a/src/ship/window/gui/Gui.cpp
++++ b/src/ship/window/gui/Gui.cpp
+@@ -199,7 +199,12 @@ void Gui::DrawMenu() {
+ 
+     if (ImGui::IsKeyPressed(TOGGLE_BTN, false) || ImGui::IsKeyPressed(ImGuiKey_Escape, false) ||
+         (ImGui::IsKeyPressed(TOGGLE_PAD_BTN, false) &&
+-         Ship::Context::GetInstance()->GetConsoleVariables()->GetInteger(CVAR_IMGUI_CONTROLLER_NAV, 0))) {
++         Ship::Context::GetInstance()->GetConsoleVariables()->GetInteger(CVAR_IMGUI_CONTROLLER_NAV, 0)
++#ifdef __ANDROID__
++         // Select is part of the app's Select+Start quick menu; it may only close this menu.
++         && GetMenuOrMenubarVisible()
++#endif
++             )) {
+         if ((ImGui::IsKeyPressed(ImGuiKey_Escape, false) || ImGui::IsKeyPressed(TOGGLE_PAD_BTN, false)) && GetMenu()) {
+             GetMenu()->ToggleVisibility();
+         } else if (ImGui::IsKeyPressed(TOGGLE_BTN, false) && GetMenu()) {

@@ -131,6 +131,12 @@ def launcher_art(art, logo):
     small = logo.copy()
     small.thumbnail((720, 300), Image.LANCZOS)
     small.save(os.path.join(nodpi, "launcher_logo.png"))
+    # The in-game menu's About page logo (packed into gdiffuser.o2r), drawn at 1024x324.
+    menu = Image.new("RGBA", (1024, 324), (0, 0, 0, 0))
+    fit = logo.copy()
+    fit.thumbnail((1024, 324), Image.LANCZOS)
+    menu.alpha_composite(fit, ((1024 - fit.width) // 2, (324 - fit.height) // 2))
+    menu.save(os.path.join(HERE, "..", "..", "assets", "branding", "gdiffuser-logo-menu.png"))
 
 
 def icon_scene():
