@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="launcher_title">CHOOSE YOUR FILES</string>
-    <string name="launcher_description">Choose the folder holding the F-Zero X (USA) ROM, the translated Expansion Kit disk (.ndd) and the 64DD IPL.</string>
+    <string name="launcher_description">Choose the folder holding the game ROM (USA), the translated expansion kit disk (.ndd) and the disk drive IPL.</string>
     <string name="launcher_choose">CHOOSE FOLDER  ›</string>
     <string name="launcher_change_folder">CHANGE FOLDER</string>
     <string name="launcher_play">PLAY  ›</string>
@@ -9,11 +9,11 @@
     <string name="launcher_checking">Copying the files…</string>
     <string name="launcher_unreadable">The folder could not be read. Choose it again.</string>
     <string name="launcher_missing">Missing files:\n%1$s</string>
-    <string name="file_rom">• F-Zero X ROM (USA or Europe)</string>
-    <string name="file_rom_japanese">• F-Zero X ROM: the Japanese one is not supported, use the USA one</string>
-    <string name="file_disk">• Translated Expansion Kit disk (.ndd)</string>
-    <string name="file_disk_japanese">• Expansion Kit disk: the Japanese one is not supported, use the translated one</string>
-    <string name="file_ipl">• 64DD IPL</string>
+    <string name="file_rom">• Game ROM (USA or Europe)</string>
+    <string name="file_rom_japanese">• Game ROM: the Japanese one is not supported, use the USA one</string>
+    <string name="file_disk">• Translated expansion kit disk (.ndd)</string>
+    <string name="file_disk_japanese">• Expansion kit disk: the Japanese one is not supported, use the translated one</string>
+    <string name="file_ipl">• Disk drive IPL</string>
     <string name="launcher_ready_title">READY TO RACE</string>
     <string name="launcher_ready_description">The files are copied into the app. The first start prepares the graphics and takes a little longer.</string>
     <string name="launcher_ready_status">Press Play.</string>

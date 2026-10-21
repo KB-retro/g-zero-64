@@ -2,7 +2,7 @@
 
 <img src="docs/branding/gzero64-banner.png" alt="G-Zero 64" width="900">
 
-**F-Zero X con el Expansion Kit del 64DD, nativo en Android.**
+**El clásico de carreras de naves futuristas de la consola de 64 bits, nativo en Android.**
 
 [![Plataforma](https://img.shields.io/badge/plataforma-Android%2011%2B-3DDC84)](#instalación)
 [![Basado en](https://img.shields.io/badge/basado%20en-G--Diffuser-informational)](https://github.com/Zorkats/G-Diffuser)
@@ -14,11 +14,11 @@
 
 ## ¿Qué es?
 
-**G-Zero 64** es un port para Android de [G-Diffuser](https://github.com/Zorkats/G-Diffuser), el port
-nativo de **F-Zero X** (Nintendo 64) hecho por Zorkats. No es un emulador: el juego está
-reconstruido a partir de su código decompilado y funciona directamente en el móvil o la consola
-Android, con mejoras modernas y el **Expansion Kit** completo del 64DD (editor de circuitos y
-copas extra).
+**G-Zero 64** es un port para Android de [G-Diffuser](https://github.com/Zorkats/G-Diffuser), hecho
+por Zorkats, del clásico juego de carreras de naves espaciales de la consola de 64 bits. No es un
+emulador: el juego está reconstruido a partir de su código decompilado y funciona directamente en
+el móvil o la consola Android, con mejoras modernas y el **kit de expansión** completo de la unidad
+de disco (editor de circuitos y copas extra).
 
 Está pensado sobre todo para consolas portátiles Android con mando (Retroid, AYN Odin, Anbernic…),
 aunque funciona en cualquier dispositivo compatible.
@@ -31,7 +31,7 @@ aunque funciona en cualquier dispositivo compatible.
 ## Funciones
 
 - **Juego nativo**, sin emulación, a 60 FPS.
-- **Expansion Kit del 64DD**: editor de circuitos (*Course Edit*) y las copas del disco.
+- **Kit de expansión**: editor de circuitos (*Course Edit*) y las copas extra del disco.
 - **Pantalla panorámica 16:9** real, con el marcador ajustado a los bordes.
 - **Sin bordes negros**: la imagen ocupa toda la pantalla.
 - **Imagen más fluida**: interpolación de fotogramas en pantallas de más de 60 Hz.
@@ -57,9 +57,9 @@ Tienen que ser copias tuyas, sacadas de tus propios cartuchos y discos:
 
 | Archivo | Qué es |
 | --- | --- |
-| ROM de **F-Zero X (EE. UU.)** | El cartucho americano. Vale `.z64`, `.v64` o `.n64`. La europea también funciona; la japonesa no. |
-| Disco del **Expansion Kit traducido** (`.ndd`) | El disco del 64DD con la traducción al inglés de Zoinkity, adaptada por LuigiBlood. |
-| **IPL del 64DD** | El chip de arranque de la unidad 64DD (japonesa o prototipo americano). |
+| **ROM del juego** | El cartucho americano. Vale `.z64`, `.v64` o `.n64`. La europea también funciona; la japonesa no. |
+| Disco del **kit de expansión traducido** (`.ndd`) | El disco de expansión con la traducción al inglés de Zoinkity, adaptada por LuigiBlood. |
+| **IPL de la unidad de disco** | El chip de arranque de la unidad de disco (japonesa o prototipo americano). |
 
 No hace falta renombrarlos: el lanzador los reconoce por su contenido.
 
@@ -98,14 +98,14 @@ que cada versión se instala encima de la anterior. El código de Android está 
 
 - **G-Zero 64** (port para Android, lanzador y arte): [KB-retro](https://github.com/KB-retro).
 - **[G-Diffuser](https://github.com/Zorkats/G-Diffuser)** de **Zorkats**: el port nativo de PC en el que se basa todo este proyecto.
-- **[inspectredc](https://github.com/inspectredc)** y colaboradores de la [decompilación de F-Zero X](https://github.com/inspectredc/fzerox): sin su trabajo nada de esto existiría.
-- **Zoinkity**: traducción al inglés del Expansion Kit.
-- **[LuigiBlood](https://github.com/LuigiBlood)**: adaptación de la traducción al disco del 64DD e investigación sobre el 64DD.
+- **[inspectredc](https://github.com/inspectredc)** y colaboradores de la [decompilación del juego original](https://github.com/inspectredc/fzerox): sin su trabajo nada de esto existiría.
+- **Zoinkity**: traducción al inglés del kit de expansión.
+- **[LuigiBlood](https://github.com/LuigiBlood)**: adaptación de la traducción al disco e investigación sobre la unidad de disco.
 - **[Kenix3](https://github.com/Kenix3)** y [libultraship](https://github.com/Kenix3/libultraship): motor y renderizador.
 - La comunidad de **[HarbourMasters](https://github.com/HarbourMasters)** ([Ship of Harkinian](https://github.com/HarbourMasters/Shipwright), [Starship](https://github.com/HarbourMasters/Starship)) y [Torch](https://github.com/HarbourMasters/Torch).
 - **[Kiziio](https://github.com/Kiziio1)**: logo e icono de G-Diffuser.
 - **[SDL](https://www.libsdl.org/)**: ventana, sonido y mandos en Android.
-- Toda la comunidad de decompilación y modding de N64.
+- Toda la comunidad de decompilación y modding de la consola de 64 bits.
 
 El README original de G-Diffuser, con toda su información técnica, está en
 [`docs/README-G-Diffuser.md`](docs/README-G-Diffuser.md).
@@ -116,7 +116,7 @@ El código de G-Diffuser y de G-Zero 64 se publica bajo la [licencia MIT](LICENS
 componentes incluidos mantienen sus propias licencias: ver [`LICENSES/`](LICENSES/) y
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
-Proyecto no oficial, sin relación con Nintendo ni respaldado por Nintendo. F-Zero y Nintendo son
-marcas de Nintendo. G-Zero 64 no contiene ROM, disco, IPL ni ningún otro dato del juego: cada
+Proyecto de fans no oficial, sin relación con los titulares de los derechos del juego original ni
+respaldado por ellos. Las marcas pertenecen a sus propietarios. G-Zero 64 no contiene ROM, disco, IPL ni ningún otro dato del juego: cada
 usuario debe aportar sus propias copias legales. Los archivos que la app genera a partir de ellas
 (como `fzerox.o2r`) también son datos del juego y no deben compartirse.

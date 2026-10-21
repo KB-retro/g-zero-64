@@ -91,20 +91,84 @@ def logo():
 
 
 def icon_foreground(size):
+    """Big G on top; ZERO under it on the left and 64 on the right."""
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     # Speed stripes behind the letter, inside the adaptive-icon safe zone (66%).
     for i, c in enumerate([(255, 150, 40), (255, 210, 90), (70, 220, 255)]):
-        y = int(size * (0.40 + i * 0.07))
-        d.polygon([(size * 0.18, y), (size * 0.62, y), (size * 0.58, y + size * 0.04), (size * 0.14, y + size * 0.04)],
+        y = int(size * (0.30 + i * 0.06))
+        d.polygon([(size * 0.17, y), (size * 0.50, y), (size * 0.47, y + size * 0.035), (size * 0.14, y + size * 0.035)],
                   fill=c + (220,))
-    g = title("G", int(size * 0.42))
-    g.thumbnail((int(size * 0.5), int(size * 0.5)), Image.LANCZOS)
-    img.alpha_composite(g, (int(size * 0.30), int(size * 0.20)))
-    n = title("64", int(size * 0.16), (190, 240, 255), (60, 170, 255))
-    n.thumbnail((int(size * 0.26), int(size * 0.2)), Image.LANCZOS)
-    img.alpha_composite(n, (int(size * 0.52), int(size * 0.60)))
+    g = title("G", int(size * 0.40))
+    g.thumbnail((int(size * 0.44), int(size * 0.40)), Image.LANCZOS)
+    img.alpha_composite(g, (int(size * 0.31), int(size * 0.17)))
+    zero = title("ZERO", int(size * 0.16))
+    zero.thumbnail((int(size * 0.38), int(size * 0.15)), Image.LANCZOS)
+    img.alpha_composite(zero, (int(size * 0.17), int(size * 0.585)))
+    n = title("64", int(size * 0.18), (190, 240, 255), (60, 170, 255))
+    n.thumbnail((int(size * 0.24), int(size * 0.18)), Image.LANCZOS)
+    img.alpha_composite(n, (int(size * 0.17) + zero.width - int(size * 0.035), int(size * 0.565)))
     return img
+
+
+def ship(width, body, accent, bank=0.0):
+    """A generic futuristic hover racer seen from behind: low wedge hull, glowing thrusters, trails."""
+    w, h = width, int(width * 0.42)
+    pad = int(width * 0.3)
+    img = Image.new("RGBA", (w + 2 * pad, h + 2 * pad + int(width * 0.4)), (0, 0, 0, 0))
+
+    def P(x, y):
+        return (pad + x * w, pad + y * h)
+
+    shadow = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    ImageDraw.Draw(shadow).ellipse([P(0.08, 1.02), P(0.92, 1.18)], fill=(0, 0, 0, 140))
+    img.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(width * 0.035)))
+    # Exhaust trails stretching back toward the viewer.
+    trails = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    td = ImageDraw.Draw(trails)
+    for cx in (0.36, 0.64):
+        td.polygon([P(cx - 0.05, 0.62), P(cx + 0.05, 0.62), P(cx + 0.03 + (cx - 0.5) * 0.4, 1.9),
+                    P(cx - 0.03 + (cx - 0.5) * 0.4, 1.9)], fill=(110, 210, 255, 110))
+    img.alpha_composite(trails.filter(ImageFilter.GaussianBlur(width * 0.025)))
+    d = ImageDraw.Draw(img)
+    dark = tuple(int(c * 0.5) for c in body)
+    light = tuple(min(255, int(c * 1.2) + 30) for c in body)
+    # Long swept wings.
+    d.polygon([P(-0.08, 0.80), P(0.24, 0.46), P(0.30, 0.74)], fill=dark)
+    d.polygon([P(1.08, 0.80), P(0.76, 0.46), P(0.70, 0.74)], fill=dark)
+    d.polygon([P(-0.08, 0.80), P(0.24, 0.46), P(0.10, 0.73)], fill=accent)
+    d.polygon([P(1.08, 0.80), P(0.76, 0.46), P(0.90, 0.73)], fill=accent)
+    # Flat wedge hull.
+    d.polygon([P(0.14, 0.78), P(0.86, 0.78), P(0.74, 0.44), P(0.26, 0.44)], fill=body)
+    d.polygon([P(0.14, 0.78), P(0.86, 0.78), P(0.82, 0.86), P(0.18, 0.86)], fill=dark)
+    d.polygon([P(0.25, 0.48), P(0.75, 0.48), P(0.77, 0.54), P(0.23, 0.54)], fill=accent)
+    d.polygon([P(0.34, 0.44), P(0.66, 0.44), P(0.58, 0.26), P(0.42, 0.26)], fill=light)
+    # Low canopy.
+    d.ellipse([P(0.43, 0.20), P(0.57, 0.38)], fill=(40, 90, 160))
+    d.ellipse([P(0.455, 0.22), P(0.51, 0.29)], fill=(170, 220, 255))
+    # Thrusters.
+    glow = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    for cx in (0.36, 0.64):
+        gd.ellipse([P(cx - 0.11, 0.52), P(cx + 0.11, 0.86)], fill=(90, 200, 255, 210))
+    img.alpha_composite(glow.filter(ImageFilter.GaussianBlur(width * 0.045)))
+    d = ImageDraw.Draw(img)
+    for cx in (0.36, 0.64):
+        d.ellipse([P(cx - 0.07, 0.59), P(cx + 0.07, 0.77)], fill=(30, 30, 40))
+        d.ellipse([P(cx - 0.055, 0.61), P(cx + 0.055, 0.75)], fill=(120, 220, 255))
+        d.ellipse([P(cx - 0.025, 0.65), P(cx + 0.025, 0.71)], fill=(240, 255, 255))
+    if bank:
+        img = img.rotate(bank, resample=Image.BICUBIC)
+    return img
+
+
+def race(canvas, scale=1.0):
+    """Two racers on the track, the nearer one on the left."""
+    w, h = canvas.size
+    near = ship(int(w * 0.21 * scale), (205, 40, 60), (255, 200, 60), bank=6)
+    far = ship(int(w * 0.13 * scale), (40, 110, 220), (240, 240, 255), bank=-4)
+    canvas.alpha_composite(far, (int(w * 0.57 - far.width / 2), int(h * 0.64 - far.height / 2)))
+    canvas.alpha_composite(near, (int(w * 0.40 - near.width / 2), int(h * 0.86 - near.height / 2)))
 
 
 def icons():
@@ -124,14 +188,15 @@ def icons():
 
 
 def banner():
-    """README banner for GitHub: backdrop and logo, without the Patrulla Retro mark."""
+    """README banner for GitHub: backdrop, logo and two racers, without the Patrulla Retro mark."""
     out = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "branding")
     os.makedirs(out, exist_ok=True)
     back = Image.open(os.path.join(RES, "drawable-nodpi", "launcher_backdrop.jpg")).convert("RGBA")
-    back = back.crop((0, 140, 1920, 920)).resize((1280, 520), Image.LANCZOS)
+    back = back.crop((0, 60, 1920, 1080)).resize((1280, 680), Image.LANCZOS)
     t = title("G-ZERO 64", 230)
-    t.thumbnail((980, 300), Image.LANCZOS)
-    back.alpha_composite(t, ((1280 - t.width) // 2, 70))
+    t.thumbnail((940, 280), Image.LANCZOS)
+    back.alpha_composite(t, ((1280 - t.width) // 2, 50))
+    race(back)
     back.convert("RGB").save(os.path.join(out, "gzero64-banner.png"))
     icon = Image.open(os.path.join(RES, "mipmap-xxxhdpi", "ic_launcher.png"))
     icon.save(os.path.join(out, "gzero64-icon.png"))

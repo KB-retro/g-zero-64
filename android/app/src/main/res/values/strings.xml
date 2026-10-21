@@ -2,9 +2,9 @@
 <resources>
     <string name="app_name" translatable="false">G-Zero 64</string>
     <string name="launcher_logo" translatable="false">G-Zero 64</string>
-    <string name="launcher_platform">F-ZERO X + EXPANSION KIT / ANDROID</string>
+    <string name="launcher_platform">CARRERAS DE NAVES / ANDROID</string>
     <string name="launcher_title">ELIGE TUS ARCHIVOS</string>
-    <string name="launcher_description">Elige la carpeta con la ROM de F-Zero X (EE. UU.), el disco del Expansion Kit traducido (.ndd) y la IPL del 64DD.</string>
+    <string name="launcher_description">Elige la carpeta con la ROM del juego (EE. UU.), el disco del kit de expansión traducido (.ndd) y la IPL de la unidad de disco.</string>
     <string name="launcher_choose">ELEGIR CARPETA  ›</string>
     <string name="launcher_change_folder">CAMBIAR CARPETA</string>
     <string name="launcher_play">JUGAR  ›</string>
@@ -12,11 +12,11 @@
     <string name="launcher_checking">Copiando los archivos…</string>
     <string name="launcher_unreadable">No se pudo leer la carpeta. Vuelve a elegirla.</string>
     <string name="launcher_missing">Faltan archivos:\n%1$s</string>
-    <string name="file_rom">• ROM de F-Zero X (EE. UU. o Europa)</string>
-    <string name="file_rom_japanese">• ROM de F-Zero X: la japonesa no es compatible, usa la de EE. UU.</string>
-    <string name="file_disk">• Disco del Expansion Kit traducido (.ndd)</string>
-    <string name="file_disk_japanese">• Disco del Expansion Kit: el japonés no es compatible, usa el traducido</string>
-    <string name="file_ipl">• IPL del 64DD</string>
+    <string name="file_rom">• ROM del juego (EE. UU. o Europa)</string>
+    <string name="file_rom_japanese">• ROM del juego: la japonesa no es compatible, usa la de EE. UU.</string>
+    <string name="file_disk">• Disco del kit de expansión traducido (.ndd)</string>
+    <string name="file_disk_japanese">• Disco del kit de expansión: el japonés no es compatible, usa el traducido</string>
+    <string name="file_ipl">• IPL de la unidad de disco</string>
     <string name="launcher_ready_title">LISTO PARA CORRER</string>
     <string name="launcher_ready_description">Los archivos están copiados en la app. La primera partida prepara los gráficos y tarda un poco más.</string>
     <string name="launcher_ready_status">Pulsa Jugar.</string>
