@@ -164,7 +164,7 @@ extern "C" void gdx_android_bridge_tick(void) {
 
 // Reads several settings in one game frame. isFloat[i] picks the CVar type; defaults[i] is used
 // for an unset CVar and returned unchanged if the game does not answer within half a second.
-extern "C" JNIEXPORT jfloatArray JNICALL Java_io_github_kbretro_gzero64_GameBridge_nativeGet(
+extern "C" JNIEXPORT jfloatArray JNICALL Java_com_gzero64_GameBridge_nativeGet(
     JNIEnv* env, jclass, jobjectArray names, jbooleanArray isFloat, jfloatArray defaults) {
     const jsize n = env->GetArrayLength(names);
     std::vector<Request> requests(static_cast<size_t>(n));
@@ -215,7 +215,7 @@ extern "C" JNIEXPORT jfloatArray JNICALL Java_io_github_kbretro_gzero64_GameBrid
     return out;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_io_github_kbretro_gzero64_GameBridge_nativeSet(JNIEnv* env, jclass,
+extern "C" JNIEXPORT void JNICALL Java_com_gzero64_GameBridge_nativeSet(JNIEnv* env, jclass,
                                                                                       jstring name, jboolean isFloat,
                                                                                       jfloat value) {
     Request r;
@@ -226,13 +226,13 @@ extern "C" JNIEXPORT void JNICALL Java_io_github_kbretro_gzero64_GameBridge_nati
     sWrites.push_back(std::move(r));
 }
 
-extern "C" JNIEXPORT void JNICALL Java_io_github_kbretro_gzero64_GameBridge_nativeSetMenuOpen(JNIEnv*, jclass,
+extern "C" JNIEXPORT void JNICALL Java_com_gzero64_GameBridge_nativeSetMenuOpen(JNIEnv*, jclass,
                                                                                              jboolean open) {
     sMenuOpen.store(open != JNI_FALSE);
 }
 
 // The desktop menu's registry as JSON (gdx_menu_bridge.cpp); "" if the game did not answer.
-extern "C" JNIEXPORT jstring JNICALL Java_io_github_kbretro_gzero64_GameBridge_nativeMenuJson(JNIEnv* env, jclass) {
+extern "C" JNIEXPORT jstring JNICALL Java_com_gzero64_GameBridge_nativeMenuJson(JNIEnv* env, jclass) {
     std::string json;
     RunOnGameThread(
         [&json] {
@@ -245,7 +245,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_io_github_kbretro_gzero64_GameBridge_n
     return env->NewStringUTF(json.c_str());
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_io_github_kbretro_gzero64_GameBridge_nativeMenuSet(JNIEnv* env, jclass,
+extern "C" JNIEXPORT jboolean JNICALL Java_com_gzero64_GameBridge_nativeMenuSet(JNIEnv* env, jclass,
                                                                                             jstring id, jdouble value) {
     const std::string key = Utf(env, id);
     bool ok = false;
@@ -258,7 +258,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_io_github_kbretro_gzero64_GameBridge_
     return ok ? JNI_TRUE : JNI_FALSE;
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_io_github_kbretro_gzero64_GameBridge_nativeMenuPress(JNIEnv* env, jclass,
+extern "C" JNIEXPORT jboolean JNICALL Java_com_gzero64_GameBridge_nativeMenuPress(JNIEnv* env, jclass,
                                                                                               jstring id) {
     const std::string key = Utf(env, id);
     bool ok = false;

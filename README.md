@@ -79,7 +79,7 @@ No hace falta renombrarlos: el lanzador los reconoce por su contenido.
 Para actualizar, instala la nueva APK encima de la anterior: tus partidas se conservan.
 
 Las partidas, la configuración y los packs de texturas están en
-`Android/data/io.github.kbretro.gzero64/files/`.
+`Android/data/com.gzero64/files/`.
 
 ## Controles
 

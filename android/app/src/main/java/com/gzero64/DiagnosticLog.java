@@ -1,4 +1,4 @@
-package io.github.kbretro.gzero64;
+package com.gzero64;
 
 import android.content.Context;
 import android.net.Uri;
