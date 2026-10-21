@@ -4,6 +4,10 @@ import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
+import android.provider.OpenableColumns;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -23,6 +27,11 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -51,20 +60,20 @@ final class QuickMenuDialog {
         void set(int value);
     }
 
-    // G-Zero 64 page settings: CVar name, float?, default.
+    // G-Zero 64's own rows (Picture section): CVar name, float?, default.
     private static final String WIDESCREEN = "gEnhancements.Graphics.Widescreen";
     private static final String WIDESCREEN_UI = "gEnhancements.Graphics.WidescreenUI";
-    private static final String RESOLUTION = "gInternalResolution";
     private static final String FSR = "gGZ64.Fsr";
     private static final String FSR_SHARPNESS = "gGZ64.FsrSharpness";
     private static final String FXAA = "gGZ64.Fxaa";
     private static final String MSAA = "gMSAAValue";
-    private static final String FPS_COUNTER = "gz64.FpsCounter";
     private static final Object[][] SETTINGS = {
-        {RESOLUTION, true, 1.0f}, {FSR, false, 0f}, {FSR_SHARPNESS, true, 0.2f}, {FXAA, false, 0f},
-        {MSAA, false, 1f}, {FPS_COUNTER, false, 0f},
+        {FSR, false, 0f}, {FSR_SHARPNESS, true, 0.2f}, {FXAA, false, 0f}, {MSAA, false, 1f},
     };
-    private static final float[] SCALES = {0.5f, 0.75f, 1.0f, 1.5f, 2.0f};
+    static final int PICK_MODS = 6401;
+    private static final String RELOAD_PACKS = "special/reload";
+    /** The open menu, for the mod picker's result. */
+    private static QuickMenuDialog current;
     private static final float[] SHARPNESS = {1.0f, 0.5f, 0.0f}; // AMD stops: 0 = sharpest
 
     private final GameActivity activity;
@@ -79,7 +88,7 @@ final class QuickMenuDialog {
     private final TextView pageTitle;
     private final TextView footer;
     private final List<String> pageNames = new ArrayList<>();
-    private final List<JSONObject> pages = new ArrayList<>(); // null entry = the G-Zero 64 page
+    private final List<JSONObject> pages = new ArrayList<>(); // null entry: game not loaded, own rows only
     private int currentPage;
     private boolean busy;
 
@@ -100,6 +109,7 @@ final class QuickMenuDialog {
         } catch (UnsatisfiedLinkError error) {
             Log.w("GZero64", "Game library not loaded", error);
         }
+        current = menu;
         menu.build();
         menu.load(0, 0);
         return menu.dialog;
@@ -174,12 +184,14 @@ final class QuickMenuDialog {
     private void parse(String json) {
         pageNames.clear();
         pages.clear();
-        pageNames.add(activity.getString(R.string.quick_page_gzero));
-        pages.add(null);
         nav.removeAllViews();
-        addNavHeader("G-ZERO 64");
-        addNavItem(0);
-        if (json == null || json.isEmpty()) return;
+        if (json == null || json.isEmpty()) {
+            addNavHeader("G-ZERO 64");
+            pageNames.add(activity.getString(R.string.quick_page_gzero));
+            pages.add(null);
+            addNavItem(0);
+            return;
+        }
         try {
             JSONArray sections = new JSONObject(json).getJSONArray("sections");
             for (int s = 0; s < sections.length(); s++) {
@@ -326,6 +338,7 @@ final class QuickMenuDialog {
 
     /** Called by GameActivity's dismiss listener: the game runs again. */
     static void closed() {
+        current = null;
         try {
             GameBridge.nativeSetMenuOpen(false);
         } catch (UnsatisfiedLinkError ignored) {
@@ -385,8 +398,15 @@ final class QuickMenuDialog {
         footer.setText("");
         JSONObject data = pages.get(page);
         if (data == null) {
-            buildGZeroPage();
+            addFormatRow();
+            addScalingRows();
         } else {
+            switch (data.optString("key")) {
+                case "display": addFormatRow(); break;
+                case "enhancements": addScalingRows(); break;
+                case "mods": addInstallRow(); break;
+                default: break;
+            }
             try {
                 JSONArray list = data.getJSONArray("rows");
                 for (int i = 0; i < list.length(); i++) addGameRow(list.getJSONObject(i));
@@ -424,7 +444,7 @@ final class QuickMenuDialog {
         return activity.getResources().getStringArray(res);
     }
 
-    private void buildGZeroPage() {
+    private void addFormatRow() {
         addChoice(R.string.quick_format, R.string.quick_format_tip, new Choice() {
             @Override public String[] values() { return array(R.array.quick_formats); }
             @Override public int get() { return format(activity); }
@@ -433,11 +453,10 @@ final class QuickMenuDialog {
                 applyFormat(activity, value);
             }
         });
-        addChoice(R.string.quick_resolution, R.string.quick_resolution_tip, new Choice() {
-            @Override public String[] values() { return array(R.array.quick_resolutions); }
-            @Override public int get() { return nearest(SCALES, value(RESOLUTION)); }
-            @Override public void set(int value) { setSetting(RESOLUTION, true, SCALES[value]); }
-        });
+    }
+
+    /** FSR and anti-aliasing (G-Zero 64's own passes), at the top of Graphics enhancements. */
+    private void addScalingRows() {
         addChoice(R.string.quick_fsr, R.string.quick_fsr_tip, new Choice() {
             @Override public String[] values() { return array(R.array.quick_off_on); }
             @Override public int get() { return value(FSR) != 0 ? 1 : 0; }
@@ -461,11 +480,115 @@ final class QuickMenuDialog {
                 setSetting(MSAA, false, value == 3 ? 4 : value == 2 ? 2 : 1);
             }
         });
-        addChoice(R.string.quick_fps, 0, new Choice() {
-            @Override public String[] values() { return array(R.array.quick_off_on); }
-            @Override public int get() { return value(FPS_COUNTER) != 0 ? 1 : 0; }
-            @Override public void set(int value) { setSetting(FPS_COUNTER, false, value); }
+    }
+
+    // ── Installing packs ────────────────────────────────────────────────────────────────────────
+
+    private void addInstallRow() {
+        Button install = new Button(activity);
+        install.setText(R.string.quick_install_mods);
+        install.setAllCaps(false);
+        install.setOnFocusChangeListener(footerOnFocus(activity.getString(R.string.quick_install_mods_tip)));
+        install.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view) {
+                Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                        .addCategory(Intent.CATEGORY_OPENABLE)
+                        .setType("*/*")
+                        .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                try {
+                    activity.startActivityForResult(pick, PICK_MODS);
+                } catch (android.content.ActivityNotFoundException exception) {
+                    footer.setText(R.string.quick_install_failed);
+                }
+            }
         });
+        rows.addView(install);
+    }
+
+    /** GameActivity's result for PICK_MODS: copies the packs into mods/ and reloads them. */
+    static void modsPicked(final GameActivity activity, Intent data) {
+        final List<Uri> uris = new ArrayList<>();
+        if (data != null && data.getClipData() != null) {
+            for (int i = 0; i < data.getClipData().getItemCount(); i++) uris.add(data.getClipData().getItemAt(i).getUri());
+        } else if (data != null && data.getData() != null) {
+            uris.add(data.getData());
+        }
+        if (uris.isEmpty()) return;
+        worker.execute(new Runnable() {
+            @Override public void run() {
+                int installed = 0, skipped = 0;
+                File appDir = RuntimeFiles.appDir(activity);
+                for (Uri uri : uris) {
+                    String name = displayName(activity, uri);
+                    String lower = name.toLowerCase(Locale.ROOT);
+                    File dir;
+                    if (lower.endsWith(".o2r")) {
+                        dir = new File(appDir, "mods");
+                    } else if (lower.endsWith(".ogg") || lower.endsWith(".flac") || lower.endsWith(".wav")) {
+                        dir = new File(appDir, "mods/music/custom");
+                    } else {
+                        skipped++;
+                        continue;
+                    }
+                    if (!dir.isDirectory() && !dir.mkdirs()) {
+                        skipped++;
+                        continue;
+                    }
+                    try (InputStream in = activity.getContentResolver().openInputStream(uri);
+                         OutputStream out = new FileOutputStream(new File(dir, name))) {
+                        if (in == null) throw new IOException("no stream");
+                        byte[] buffer = new byte[1 << 16];
+                        for (int n; (n = in.read(buffer)) > 0; ) out.write(buffer, 0, n);
+                        installed++;
+                    } catch (IOException exception) {
+                        Log.e("GZero64", "Cannot install " + name, exception);
+                        skipped++;
+                    }
+                }
+                // The game thread may still be held by the picker's pause: retry for a few seconds.
+                for (int attempt = 0; installed > 0 && attempt < 10; attempt++) {
+                    try {
+                        if (GameBridge.nativeMenuPress(RELOAD_PACKS)) break;
+                        Thread.sleep(500);
+                    } catch (UnsatisfiedLinkError | InterruptedException ignored) {
+                        break;
+                    }
+                }
+                final String message = activity.getString(R.string.quick_installed, installed)
+                        + (skipped > 0 ? "  " + activity.getString(R.string.quick_install_skipped, skipped) : "");
+                final String menuJson = readMenu();
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override public void run() {
+                        QuickMenuDialog menu = current;
+                        if (menu == null || !menu.dialog.isShowing()) return;
+                        if (!menuJson.isEmpty()) {
+                            menu.parse(menuJson);
+                            menu.showPage(Math.min(menu.currentPage, menu.pages.size() - 1), 0);
+                        }
+                        menu.footer.setText(message);
+                    }
+                });
+            }
+        });
+    }
+
+    private static String readMenu() {
+        try {
+            return GameBridge.nativeMenuJson();
+        } catch (UnsatisfiedLinkError error) {
+            return "";
+        }
+    }
+
+    private static String displayName(Context context, Uri uri) {
+        String name = null;
+        try (Cursor cursor = context.getContentResolver().query(uri,
+                new String[] {OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) name = cursor.getString(0);
+        } catch (RuntimeException ignored) {
+        }
+        if (name == null) name = uri.getLastPathSegment() != null ? uri.getLastPathSegment() : "pack.o2r";
+        return new File(name).getName(); // no folders from the provider's name
     }
 
     private void setSetting(String name, boolean isFloat, float value) {
@@ -515,6 +638,30 @@ final class QuickMenuDialog {
                 header.setTextColor(0xFFFFC452);
                 header.setPadding(dp(8), dp(12), 0, dp(2));
                 rows.addView(header);
+                return;
+            }
+            case "info": {
+                // Read-only line (achievements): name, and a mark on the right.
+                LinearLayout line = new LinearLayout(activity);
+                line.setGravity(Gravity.CENTER_VERTICAL);
+                line.setMinimumHeight(dp(40));
+                line.setPadding(dp(8), 0, dp(12), 0);
+                line.setFocusable(true);
+                line.setBackground(highlight());
+                line.setOnFocusChangeListener(footerOnFocus(describe));
+                final boolean done = row.optDouble("value", 0) != 0;
+                line.setAlpha(done ? 1f : 0.55f);
+                TextView name = new TextView(activity);
+                name.setText(label);
+                name.setTextColor(Color.WHITE);
+                name.setTextSize(15);
+                line.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+                TextView mark = new TextView(activity);
+                mark.setText(done ? "✓" : "—");
+                mark.setTextSize(16);
+                mark.setTextColor(done ? 0xFF66D17A : 0xFF8E92AA);
+                line.addView(mark);
+                rows.addView(line);
                 return;
             }
             case "text": {

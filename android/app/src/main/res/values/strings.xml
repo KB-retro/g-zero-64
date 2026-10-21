@@ -56,6 +56,11 @@
     <string name="quick_fsr_tip">Escalado AMD FSR 1.0: útil con resolución interna por debajo del 100 %.</string>
     <string name="quick_fsr_sharpness_tip">Nitidez que añade FSR tras escalar.</string>
     <string name="quick_antialiasing_tip">FXAA es ligero; MSAA es más limpio pero más exigente.</string>
+    <string name="quick_install_mods">Instalar packs…</string>
+    <string name="quick_install_mods_tip">Packs .o2r (texturas, música, sonidos, modelos, scripts) o música .ogg, .flac y .wav.</string>
+    <string name="quick_install_failed">No hay ningún explorador de archivos disponible.</string>
+    <string name="quick_installed">Instalados: %d.</string>
+    <string name="quick_install_skipped">No válidos: %d.</string>
     <string name="quick_cancel">Cancelar</string>
     <string-array name="quick_formats">
         <item>Automático</item>

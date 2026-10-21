@@ -53,6 +53,11 @@
     <string name="quick_fsr_tip">AMD FSR 1.0 upscaling: useful with internal resolution below 100%.</string>
     <string name="quick_fsr_sharpness_tip">Sharpening FSR adds after upscaling.</string>
     <string name="quick_antialiasing_tip">FXAA is light; MSAA is cleaner but heavier.</string>
+    <string name="quick_install_mods">Install packs…</string>
+    <string name="quick_install_mods_tip">.o2r packs (textures, music, sounds, models, scripts) or .ogg, .flac and .wav music.</string>
+    <string name="quick_install_failed">No file browser available.</string>
+    <string name="quick_installed">Installed: %d.</string>
+    <string name="quick_install_skipped">Not valid: %d.</string>
     <string name="quick_cancel">Cancel</string>
     <string-array name="quick_formats">
         <item>Automatic</item>

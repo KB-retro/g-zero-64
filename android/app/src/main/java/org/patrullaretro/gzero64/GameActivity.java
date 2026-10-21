@@ -73,6 +73,15 @@ public final class GameActivity extends SDLActivity {
         });
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
+        if (requestCode == QuickMenuDialog.PICK_MODS) {
+            if (resultCode == RESULT_OK) QuickMenuDialog.modsPicked(this, data);
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
     /** The quick menu's Exit: the system back behaviour this activity replaced. */
     void exitGame() {
         super.onBackPressed();

@@ -1,0 +1,17 @@
+diff --git a/src/fast/interpreter.cpp b/src/fast/interpreter.cpp
+index cbb356f..40868a8 100644
+--- a/src/fast/interpreter.cpp
++++ b/src/fast/interpreter.cpp
+@@ -7579,9 +7579,10 @@ bool Interpreter::IsFrameReady() {
+ }
+ 
+ bool Interpreter::ViewportMatchesRendererResolution() {
+-#ifdef __APPLE__
++#if defined(__APPLE__) || defined(__ANDROID__)
+     // Always treat the viewport as not matching the render resolution on mac
+-    // to avoid issues with retina scaling.
++    // to avoid issues with retina scaling. On Android (GLES) drawing straight to the window
++    // presents the frame upside down, so the game always renders offscreen there too.
+     return false;
+ #else
+     if (mCurDimensions.width == mGameWindowViewport.width && mCurDimensions.height == mGameWindowViewport.height) {
