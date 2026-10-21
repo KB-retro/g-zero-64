@@ -123,7 +123,22 @@ def icons():
         full.save(os.path.join(out, "ic_launcher.png"))
 
 
+def banner():
+    """README banner for GitHub: backdrop and logo, without the Patrulla Retro mark."""
+    out = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "branding")
+    os.makedirs(out, exist_ok=True)
+    back = Image.open(os.path.join(RES, "drawable-nodpi", "launcher_backdrop.jpg")).convert("RGBA")
+    back = back.crop((0, 140, 1920, 920)).resize((1280, 520), Image.LANCZOS)
+    t = title("G-ZERO 64", 230)
+    t.thumbnail((980, 300), Image.LANCZOS)
+    back.alpha_composite(t, ((1280 - t.width) // 2, 70))
+    back.convert("RGB").save(os.path.join(out, "gzero64-banner.png"))
+    icon = Image.open(os.path.join(RES, "mipmap-xxxhdpi", "ic_launcher.png"))
+    icon.save(os.path.join(out, "gzero64-icon.png"))
+
+
 if __name__ == "__main__":
     backdrop()
     logo()
     icons()
+    banner()
