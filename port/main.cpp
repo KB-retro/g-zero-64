@@ -1426,6 +1426,12 @@ int main(int argc, char** argv) {
     // FrameInterpolation is on.
     gdx_gfx_interp_set_now_fn(&gdx_host_now_seconds);
 
+#ifdef __ANDROID__
+    // Frame Interpolation crashes the GLES build: off even if a saved config turned it on (the
+    // Android menu hides it).
+    CVarSetInteger("gEnhancements.Graphics.FrameInterpolation", 0);
+#endif
+
     logStep("entering frame loop");
     auto w = ctx->GetWindow();
     while (w != nullptr && w->IsRunning()) {

@@ -53,13 +53,35 @@ std::string Label(const std::string& name) {
 
 // Controls of the desktop menu itself, meaningless in the Android one.
 bool SkipOnAndroid(const GdxUI::WidgetInfo& widget) {
-    static const char* const kNames[] = { "Menu Settings", "Menu background opacity", "Menu controller navigation" };
+    // Frame Interpolation crashes the GLES build; GameActivity also forces it off at start.
+    static const char* const kNames[] = { "Menu Settings", "Menu background opacity", "Menu controller navigation",
+                                          "Frame Interpolation (EXPERIMENTAL)" };
     for (const char* name : kNames) {
         if (widget.name == GdxTr(name)) {
             return true;
         }
     }
     return false;
+}
+
+// Settings -> Shaders draws its preset list as a custom ImGui block; the Android menu gets the
+// built-in modes as a plain combo (multi-pass .slangp presets are left to the desktop menu).
+constexpr const char* kShaderId = "special/shader";
+constexpr const char* kShaderItems[] = { "Off", "Scanlines", "CRT (scanlines + grille)" };
+
+bool IsShaderPreset(const GdxUI::WidgetInfo& widget) {
+    return widget.type == GdxUI::WIDGET_CUSTOM && widget.name == GdxTr("Shader preset");
+}
+
+// Index in kShaderItems, or 3 for a .slangp/.slang preset set from the desktop menu.
+int ShaderSelection() {
+    const char* pipeline = CVarGetString("gEnhancements.Graphics.PostPipeline", "");
+    const char* custom = CVarGetString("gEnhancements.Graphics.CustomShader", "");
+    if ((pipeline != nullptr && pipeline[0] != '\0') || (custom != nullptr && custom[0] != '\0')) {
+        return 3;
+    }
+    const int crt = CVarGetInteger("gEnhancements.Graphics.CRTShader", 0);
+    return crt >= 1 && crt <= 2 ? crt : 0;
 }
 
 } // namespace
@@ -204,7 +226,11 @@ std::string GdxMenu::BridgeExportJson() {
                             type = "button";
                             break;
                         default:
-                            break; // separators, custom blocks, "coming soon"
+                            if (IsShaderPreset(widget)) {
+                                type = "combo";
+                                value = ShaderSelection();
+                            }
+                            break; // separators, other custom blocks, "coming soon"
                     }
                     if (type == nullptr || (widget.name.empty() && widget.type != GdxUI::WIDGET_BUTTON)) {
                         continue;
@@ -213,8 +239,9 @@ std::string GdxMenu::BridgeExportJson() {
                         ++controls;
                     }
 
+                    const bool shader = IsShaderPreset(widget);
                     std::string row = "{\"id\":";
-                    AppendEscaped(row, (sectionName + "/" + pageName + "/" + std::to_string(col) + "/" +
+                    AppendEscaped(row, shader ? kShaderId : (sectionName + "/" + pageName + "/" + std::to_string(col) + "/" +
                                         std::to_string(index))
                                            .c_str());
                     row += ",\"type\":\"";
@@ -249,7 +276,19 @@ std::string GdxMenu::BridgeExportJson() {
                             row += ",\"percent\":true";
                         }
                     }
-                    if (std::string(type) == "combo") {
+                    if (shader) {
+                        row += ",\"items\":[";
+                        for (const char* item : kShaderItems) {
+                            AppendEscaped(row, GdxTr(item));
+                            row += ',';
+                        }
+                        if (value == 3) {
+                            AppendEscaped(row, GdxTr("Custom preset"));
+                        } else {
+                            row.pop_back();
+                        }
+                        row += ']';
+                    } else if (std::string(type) == "combo") {
                         row += ",\"items\":[";
                         for (size_t i = 0; i < widget.comboItems.size(); ++i) {
                             if (i > 0) {
@@ -312,6 +351,17 @@ static GdxUI::WidgetInfo* FindWidget(std::unordered_map<std::string, GdxUI::Main
 }
 
 bool GdxMenu::BridgeSet(const std::string& id, double value) {
+    if (id == kShaderId) {
+        const long selection = std::lround(value);
+        if (selection < 0 || selection > 2) {
+            return false; // "Custom preset" is only chosen from the desktop menu
+        }
+        CVarSetInteger("gEnhancements.Graphics.CRTShader", static_cast<int32_t>(selection));
+        CVarSetString("gEnhancements.Graphics.CustomShader", "");
+        CVarSetString("gEnhancements.Graphics.PostPipeline", "");
+        GdxSaveCvars();
+        return true;
+    }
     GdxUI::WidgetInfo* widget = FindWidget(mMenuEntries, id);
     if (widget == nullptr) {
         return false;
