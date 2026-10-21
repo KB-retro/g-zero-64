@@ -99,7 +99,7 @@ Compiled only when `GDX_EXPANSION_KIT=ON`, which is the default and the supporte
 ### Generated tables — `gen/`
 
 **Do not blind-regenerate these.** They are generator output *plus* hand-maintained corrections, and
-a regenerate silently drops the hand edits. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the safe
+a regenerate silently drops the hand edits. See [CONTRIBUTING-G-Diffuser.md](../docs/CONTRIBUTING-G-Diffuser.md) for the safe
 generate-to-scratch-and-diff workflow.
 
 | File | Contents |
@@ -156,4 +156,4 @@ Diagnostics are off by default, including in Release. Start from the diagnostics
 
 Seven console test executables build from `tests/`, `rsp/tests/`, and `resource_smoketest.cpp`. They
 need no ROM, no window and no assets, and each exits 0 on pass.
-[CONTRIBUTING.md](../CONTRIBUTING.md) names them and says which to run for which kind of change.
+[CONTRIBUTING-G-Diffuser.md](../docs/CONTRIBUTING-G-Diffuser.md) names them and says which to run for which kind of change.

@@ -94,8 +94,6 @@ que cada versión se instala encima de la anterior. El código de Android está 
 
 <p align="center">
   <img src="docs/branding/gzero64-icon.png" alt="G-Zero 64" height="96">
-  &nbsp;&nbsp;&nbsp;
-  <img src="assets/branding/gdiffuser-logo.png" alt="G-Diffuser" height="96">
 </p>
 
 - **G-Zero 64** (port para Android, lanzador y arte): [KB-retro](https://github.com/KB-retro).

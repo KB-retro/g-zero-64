@@ -1,12 +1,13 @@
-G-Diffuser License
+G-Zero 64 License
 
-Unless a file or directory states otherwise, the original G-Diffuser source code and documentation
-are licensed under the MIT License below. Submodules, vendored components, fonts, and generated
-archives retain their own licenses. See THIRD_PARTY_NOTICES.md and LICENSES/.
+G-Zero 64 is an Android port of G-Diffuser. Unless a file or directory states otherwise, its source
+code and documentation are licensed under the MIT License below. Submodules, vendored components,
+fonts, and generated archives retain their own licenses. See THIRD_PARTY_NOTICES.md and LICENSES/.
 
 MIT License
 
-Copyright (c) 2026 Vicente Mediano
+Copyright (c) 2026 KB-retro (G-Zero 64)
+Copyright (c) 2026 Vicente Mediano (G-Diffuser)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
