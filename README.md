@@ -26,7 +26,8 @@ aunque funciona en cualquier dispositivo compatible.
 > **Estado:** primera versión en pruebas. Puede tener fallos; si encuentras alguno, abre un
 > [issue](https://github.com/KB-retro/g-zero-64/issues).
 
-> [IMPORTANTE]
+> **⚠️ Importante**
+>
 > **Proyecto no oficial y gratuito**, sin relación con los propietarios del juego original ni
 > respaldado por ellos. **No incluye ningún archivo del juego:** necesitas tu propia copia legal (ver
 > [Archivos necesarios](#archivos-necesarios)). No se vende ni se acepta dinero por él.
