@@ -55,18 +55,10 @@ public final class GameActivity extends SDLActivity {
         quickMenu.setOnDismissListener(new android.content.DialogInterface.OnDismissListener() {
             @Override public void onDismiss(android.content.DialogInterface dialog) {
                 quickMenu = null;
+                QuickMenuDialog.closed();
                 restoreFullscreen();
             }
         });
-    }
-
-    /**
-     * The game and its sound stand still while the quick menu is open. SDL resumes on its own when
-     * the game window gets the focus back (onWindowFocusChanged).
-     */
-    void pauseGame() {
-        mNextNativeState = NativeState.PAUSED;
-        handleNativeState();
     }
 
     /** The quick menu's Exit: the system back behaviour this activity replaced. */

@@ -9,6 +9,9 @@ import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -20,23 +23,35 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
- * In-game quick menu (Back): picture and sound settings applied to the running game, then
- * Continue (green, left) and Exit (red, right). It replaces G-Diffuser's desktop menu on Android.
- * Values are read from the game in one batch before it pauses; changes reach it when it resumes.
+ * In-game quick menu (Back). Left: pages grouped by section; right: the page's rows; bottom: the
+ * focused row's explanation, Continue (green, left) and Exit (red, right).
+ *
+ * The first page is G-Zero 64's own picture settings (format, FSR, anti-aliasing). Every other page
+ * comes from G-Diffuser's menu through GameBridge.nativeMenuJson(), so its options, ranges, labels
+ * and disable rules are the game's own, and changing a row runs the game's own code for it. The game
+ * holds still while the menu is open (GameBridge.nativeSetMenuOpen).
  */
 final class QuickMenuDialog {
-    /** A value row: one label, n values, cycled with left/right or the arrows. */
-    private interface Row {
+    /** A row of the G-Zero 64 page: one label, n values, cycled with left/right or the arrows. */
+    private interface Choice {
         String[] values();
         int get();
         void set(int value);
     }
 
-    // Game settings the menu shows: CVar name, float?, default.
+    // G-Zero 64 page settings: CVar name, float?, default.
     private static final String WIDESCREEN = "gEnhancements.Graphics.Widescreen";
     private static final String WIDESCREEN_UI = "gEnhancements.Graphics.WidescreenUI";
     private static final String RESOLUTION = "gInternalResolution";
@@ -44,42 +59,54 @@ final class QuickMenuDialog {
     private static final String FSR_SHARPNESS = "gGZ64.FsrSharpness";
     private static final String FXAA = "gGZ64.Fxaa";
     private static final String MSAA = "gMSAAValue";
-    private static final String TEXTURE_FILTER = "gTextureFilter";
-    private static final String REMOVE_BORDERS = "gEnhancements.Graphics.RemoveBorders";
-    private static final String DRAW_DISTANCE = "gEnhancements.Graphics.DrawDistance";
     private static final String FPS_COUNTER = "gz64.FpsCounter";
-    private static final String MUSIC = "gEnhancements.Audio.MusicVolume";
-    private static final String SFX = "gEnhancements.Audio.SfxVolume";
     private static final Object[][] SETTINGS = {
         {RESOLUTION, true, 1.0f}, {FSR, false, 0f}, {FSR_SHARPNESS, true, 0.2f}, {FXAA, false, 0f},
-        {MSAA, false, 1f}, {TEXTURE_FILTER, false, 0f}, {REMOVE_BORDERS, false, 0f},
-        {DRAW_DISTANCE, false, 100f}, {FPS_COUNTER, false, 0f}, {MUSIC, false, 100f}, {SFX, false, 100f},
+        {MSAA, false, 1f}, {FPS_COUNTER, false, 0f},
     };
-
     private static final float[] SCALES = {0.5f, 0.75f, 1.0f, 1.5f, 2.0f};
     private static final float[] SHARPNESS = {1.0f, 0.5f, 0.0f}; // AMD stops: 0 = sharpest
-    private static final int[] DISTANCES = {100, 150, 200};
 
     private final GameActivity activity;
     private final Dialog dialog;
-    private final LinearLayout rows;
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    // One thread for the app's lifetime: the menu opens and closes many times.
+    private static final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Map<String, Float> values = new HashMap<>();
+    private final LinearLayout nav;
+    private final LinearLayout rows;
+    private final ScrollView rowScroll;
+    private final TextView pageTitle;
+    private final TextView footer;
+    private final List<String> pageNames = new ArrayList<>();
+    private final List<JSONObject> pages = new ArrayList<>(); // null entry = the G-Zero 64 page
+    private int currentPage;
+    private boolean busy;
 
     private QuickMenuDialog(GameActivity activity) {
         this.activity = activity;
         dialog = new Dialog(activity);
+        nav = new LinearLayout(activity);
         rows = new LinearLayout(activity);
+        rowScroll = new ScrollView(activity);
+        pageTitle = new TextView(activity);
+        footer = new TextView(activity);
     }
 
     static Dialog show(GameActivity activity) {
         QuickMenuDialog menu = new QuickMenuDialog(activity);
-        menu.readSettings();
-        activity.pauseGame();
+        try {
+            GameBridge.nativeSetMenuOpen(true);
+        } catch (UnsatisfiedLinkError error) {
+            Log.w("GZero64", "Game library not loaded", error);
+        }
         menu.build();
+        menu.load(0, 0);
         return menu.dialog;
     }
 
-    /** Picture format at game start: the saved choice, or by screen shape when automatic. */
+    // ── Picture format (also applied at game start) ─────────────────────────────────────────────
+
     static void applyAutomaticFormat(GameActivity activity) {
         applyFormat(activity, format(activity));
     }
@@ -107,37 +134,73 @@ final class QuickMenuDialog {
         }
     }
 
-    private void readSettings() {
-        String[] names = new String[SETTINGS.length];
-        boolean[] isFloat = new boolean[SETTINGS.length];
-        float[] defaults = new float[SETTINGS.length];
-        for (int i = 0; i < SETTINGS.length; i++) {
-            names[i] = (String) SETTINGS[i][0];
-            isFloat[i] = (Boolean) SETTINGS[i][1];
-            defaults[i] = (Float) SETTINGS[i][2];
-        }
-        float[] read = defaults;
+    // ── Data ────────────────────────────────────────────────────────────────────────────────────
+
+    /** Reads everything from the game off the UI thread, then shows page `page` focused at `row`. */
+    private void load(final int page, final int row) {
+        busy = true;
+        worker.execute(new Runnable() {
+            @Override public void run() {
+                String json = "";
+                float[] read = null;
+                String[] names = new String[SETTINGS.length];
+                boolean[] isFloat = new boolean[SETTINGS.length];
+                float[] defaults = new float[SETTINGS.length];
+                for (int i = 0; i < SETTINGS.length; i++) {
+                    names[i] = (String) SETTINGS[i][0];
+                    isFloat[i] = (Boolean) SETTINGS[i][1];
+                    defaults[i] = (Float) SETTINGS[i][2];
+                }
+                try {
+                    read = GameBridge.nativeGet(names, isFloat, defaults);
+                    json = GameBridge.nativeMenuJson();
+                } catch (UnsatisfiedLinkError error) {
+                    Log.w("GZero64", "Game library not loaded", error);
+                }
+                final float[] settings = read != null ? read : defaults;
+                final String menu = json;
+                ui.post(new Runnable() {
+                    @Override public void run() {
+                        for (int i = 0; i < names.length; i++) values.put(names[i], settings[i]);
+                        parse(menu);
+                        busy = false;
+                        if (dialog.isShowing()) showPage(Math.min(page, pages.size() - 1), row);
+                    }
+                });
+            }
+        });
+    }
+
+    private void parse(String json) {
+        pageNames.clear();
+        pages.clear();
+        pageNames.add(activity.getString(R.string.quick_page_gzero));
+        pages.add(null);
+        nav.removeAllViews();
+        addNavHeader("G-ZERO 64");
+        addNavItem(0);
+        if (json == null || json.isEmpty()) return;
         try {
-            read = GameBridge.nativeGet(names, isFloat, defaults);
-        } catch (UnsatisfiedLinkError error) {
-            Log.w("GZero64", "Game library not loaded; showing defaults", error);
+            JSONArray sections = new JSONObject(json).getJSONArray("sections");
+            for (int s = 0; s < sections.length(); s++) {
+                JSONObject section = sections.getJSONObject(s);
+                addNavHeader(section.getString("name").toUpperCase(Locale.ROOT));
+                JSONArray sectionPages = section.getJSONArray("pages");
+                for (int p = 0; p < sectionPages.length(); p++) {
+                    JSONObject page = sectionPages.getJSONObject(p);
+                    pageNames.add(page.getString("name"));
+                    pages.add(page);
+                    addNavItem(pages.size() - 1);
+                }
+            }
+        } catch (JSONException exception) {
+            Log.e("GZero64", "Bad menu JSON", exception);
         }
-        for (int i = 0; i < names.length; i++) values.put(names[i], read[i]);
     }
 
     private float value(String name) {
         Float value = values.get(name);
         return value != null ? value : 0f;
-    }
-
-    private void setInt(String name, int value) {
-        values.put(name, (float) value);
-        GameBridge.setInt(name, value);
-    }
-
-    private void setFloat(String name, float value) {
-        values.put(name, value);
-        GameBridge.setFloat(name, value);
     }
 
     private static int nearest(float[] options, float value) {
@@ -147,104 +210,68 @@ final class QuickMenuDialog {
         return best;
     }
 
+    // ── Layout ──────────────────────────────────────────────────────────────────────────────────
+
     private int dp(float value) {
         return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value,
                 activity.getResources().getDisplayMetrics()));
     }
 
-    private String[] array(int res) {
-        return activity.getResources().getStringArray(res);
-    }
-
     private void build() {
         LinearLayout panel = new LinearLayout(activity);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(18), dp(14), dp(18), dp(12));
+        panel.setPadding(dp(14), dp(10), dp(14), dp(10));
         GradientDrawable card = new GradientDrawable();
-        card.setColor(0xF2101026);
+        card.setColor(0xF5101026);
         card.setStroke(dp(1), 0xFF4A4870);
         card.setCornerRadius(dp(4));
         panel.setBackground(card);
 
         TextView title = new TextView(activity);
         title.setText(R.string.quick_title);
-        title.setTextSize(20);
+        title.setTextSize(18);
         title.setTextColor(0xFFF3F6F7);
         title.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC));
         panel.addView(title);
 
+        LinearLayout body = new LinearLayout(activity);
+        body.setOrientation(LinearLayout.HORIZONTAL);
+        body.setPadding(0, dp(6), 0, dp(6));
+        nav.setOrientation(LinearLayout.VERTICAL);
+        ScrollView navScroll = new ScrollView(activity);
+        navScroll.addView(nav);
+        android.util.DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
+        int navWidth = Math.max(dp(150), Math.min(dp(230), metrics.widthPixels * 28 / 100));
+        body.addView(navScroll, new LinearLayout.LayoutParams(navWidth, LinearLayout.LayoutParams.MATCH_PARENT));
+        View divider = new View(activity);
+        divider.setBackgroundColor(0xFF4A4870);
+        body.addView(divider, new LinearLayout.LayoutParams(dp(1), LinearLayout.LayoutParams.MATCH_PARENT));
+
+        LinearLayout right = new LinearLayout(activity);
+        right.setOrientation(LinearLayout.VERTICAL);
+        right.setPadding(dp(12), 0, 0, 0);
+        pageTitle.setTextSize(16);
+        pageTitle.setTextColor(0xFFFFC452);
+        pageTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        pageTitle.setPadding(dp(8), 0, 0, dp(4));
+        right.addView(pageTitle);
         rows.setOrientation(LinearLayout.VERTICAL);
-        ScrollView scroll = new ScrollView(activity);
-        scroll.addView(rows);
-        panel.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+        rowScroll.addView(rows);
+        right.addView(rowScroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+        body.addView(right, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
+        panel.addView(body, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
 
-        addHeader(R.string.quick_section_picture);
-        addRow(R.string.quick_format, new Row() {
-            @Override public String[] values() { return array(R.array.quick_formats); }
-            @Override public int get() { return format(activity); }
-            @Override public void set(int value) {
-                activity.getSharedPreferences("game", Context.MODE_PRIVATE).edit().putInt("format", value).apply();
-                applyFormat(activity, value);
-            }
-        });
-        addRow(R.string.quick_resolution, new Row() {
-            @Override public String[] values() { return array(R.array.quick_resolutions); }
-            @Override public int get() { return nearest(SCALES, value(RESOLUTION)); }
-            @Override public void set(int value) { setFloat(RESOLUTION, SCALES[value]); }
-        });
-        addRow(R.string.quick_fsr, new Row() {
-            @Override public String[] values() { return array(R.array.quick_off_on); }
-            @Override public int get() { return value(FSR) != 0 ? 1 : 0; }
-            @Override public void set(int value) { setInt(FSR, value); }
-        });
-        addRow(R.string.quick_fsr_sharpness, new Row() {
-            @Override public String[] values() { return array(R.array.quick_sharpness); }
-            @Override public int get() { return nearest(SHARPNESS, value(FSR_SHARPNESS)); }
-            @Override public void set(int value) { setFloat(FSR_SHARPNESS, SHARPNESS[value]); }
-        });
-        addRow(R.string.quick_antialiasing, new Row() {
-            @Override public String[] values() { return array(R.array.quick_antialiasing); }
-            @Override public int get() {
-                int msaa = Math.round(value(MSAA));
-                if (msaa >= 4) return 3;
-                if (msaa == 2) return 2;
-                return value(FXAA) != 0 ? 1 : 0;
-            }
-            @Override public void set(int value) {
-                setInt(FXAA, value == 1 ? 1 : 0);
-                setInt(MSAA, value == 3 ? 4 : value == 2 ? 2 : 1);
-            }
-        });
-        addRow(R.string.quick_texture_filter, new Row() {
-            @Override public String[] values() { return array(R.array.quick_texture_filters); }
-            @Override public int get() { return Math.max(0, Math.min(2, Math.round(value(TEXTURE_FILTER)))); }
-            @Override public void set(int value) { setInt(TEXTURE_FILTER, value); }
-        });
-        addRow(R.string.quick_borders, new Row() {
-            @Override public String[] values() { return array(R.array.quick_borders); }
-            @Override public int get() { return value(REMOVE_BORDERS) != 0 ? 1 : 0; }
-            @Override public void set(int value) { setInt(REMOVE_BORDERS, value); }
-        });
-        addRow(R.string.quick_draw_distance, new Row() {
-            @Override public String[] values() { return new String[] {"100%", "150%", "200%"}; }
-            @Override public int get() {
-                return nearest(new float[] {DISTANCES[0], DISTANCES[1], DISTANCES[2]}, value(DRAW_DISTANCE));
-            }
-            @Override public void set(int value) { setInt(DRAW_DISTANCE, DISTANCES[value]); }
-        });
-        addRow(R.string.quick_fps, new Row() {
-            @Override public String[] values() { return array(R.array.quick_off_on); }
-            @Override public int get() { return value(FPS_COUNTER) != 0 ? 1 : 0; }
-            @Override public void set(int value) { setInt(FPS_COUNTER, value); }
-        });
-
-        addHeader(R.string.quick_section_sound);
-        addVolumeRow(R.string.quick_music, MUSIC);
-        addVolumeRow(R.string.quick_sfx, SFX);
+        footer.setTextSize(12);
+        footer.setTextColor(0xFFA9B0C8);
+        footer.setMaxLines(3);
+        footer.setEllipsize(TextUtils.TruncateAt.END);
+        footer.setMinLines(2);
+        footer.setPadding(dp(4), dp(4), dp(4), dp(4));
+        panel.addView(footer);
 
         // Continue bottom left (green), Exit bottom right (red).
         LinearLayout buttons = new LinearLayout(activity);
-        buttons.setPadding(0, dp(10), 0, 0);
+        buttons.setGravity(Gravity.CENTER_VERTICAL);
         Button resume = small(R.string.quick_resume, 0xFF2E7D32, 0xFF43A047);
         resume.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view) { dialog.dismiss(); }
@@ -253,13 +280,31 @@ final class QuickMenuDialog {
         exit.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view) { confirmExit(); }
         });
+        TextView hint = new TextView(activity);
+        hint.setText(R.string.quick_pages_hint);
+        hint.setTextSize(11);
+        hint.setTextColor(0xFF7F86A3);
+        hint.setGravity(Gravity.CENTER);
         buttons.addView(resume, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(40)));
-        buttons.addView(new View(activity), new LinearLayout.LayoutParams(0, 1, 1));
+        buttons.addView(hint, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         buttons.addView(exit, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(40)));
         panel.addView(buttons);
 
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setContentView(panel);
+        dialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
+            @Override public boolean onKey(DialogInterface d, int keyCode, KeyEvent event) {
+                if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+                if (keyCode == KeyEvent.KEYCODE_BUTTON_L1 || keyCode == KeyEvent.KEYCODE_BUTTON_R1) {
+                    if (!busy && !pages.isEmpty()) {
+                        int next = currentPage + (keyCode == KeyEvent.KEYCODE_BUTTON_R1 ? 1 : -1);
+                        showPage((next + pages.size()) % pages.size(), 0);
+                    }
+                    return true;
+                }
+                return false;
+            }
+        });
         Window window = dialog.getWindow();
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
@@ -273,101 +318,402 @@ final class QuickMenuDialog {
                         .BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
                 controller.hide(android.view.WindowInsets.Type.systemBars());
             }
-            // Sized from the screen, so the card fits 16:9 and 4:3 alike.
-            android.util.DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
-            window.setLayout(Math.min(dp(600), metrics.widthPixels * 92 / 100),
-                    metrics.heightPixels * 92 / 100);
+            // Sized from the screen, so it fits 16:9 and 4:3 alike.
+            window.setLayout(metrics.widthPixels * 96 / 100, metrics.heightPixels * 94 / 100);
         }
-        for (int i = 0; i < rows.getChildCount(); i++) {
-            View child = rows.getChildAt(i);
-            if (child.isFocusable()) {
-                child.requestFocus();
-                break;
+        pageTitle.setText(R.string.quick_loading);
+    }
+
+    /** Called by GameActivity's dismiss listener: the game runs again. */
+    static void closed() {
+        try {
+            GameBridge.nativeSetMenuOpen(false);
+        } catch (UnsatisfiedLinkError ignored) {
+        }
+    }
+
+    private void addNavHeader(String text) {
+        TextView header = new TextView(activity);
+        header.setText(text);
+        header.setTextSize(11);
+        header.setLetterSpacing(0.12f);
+        header.setTextColor(0xFFFFC452);
+        header.setPadding(dp(8), dp(10), dp(4), dp(2));
+        nav.addView(header);
+    }
+
+    private void addNavItem(final int page) {
+        TextView item = new TextView(activity);
+        item.setText(pageNames.get(page));
+        item.setTextSize(14);
+        item.setTextColor(Color.WHITE);
+        item.setPadding(dp(14), dp(8), dp(6), dp(8));
+        item.setFocusable(true);
+        item.setClickable(true);
+        item.setTag(page);
+        item.setBackground(highlight());
+        item.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view) { if (!busy) showPage(page, 0); }
+        });
+        item.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override public void onFocusChange(View view, boolean hasFocus) {
+                if (hasFocus && !busy && page != currentPage) showPage(page, -1);
+            }
+        });
+        nav.addView(item);
+    }
+
+    private StateListDrawable highlight() {
+        StateListDrawable highlight = new StateListDrawable();
+        highlight.addState(new int[] {android.R.attr.state_selected}, new ColorDrawable(0x55FFC452));
+        highlight.addState(new int[] {android.R.attr.state_focused}, new ColorDrawable(0x40FFC452));
+        highlight.addState(new int[] {android.R.attr.state_pressed}, new ColorDrawable(0x30FFC452));
+        highlight.addState(new int[0], new ColorDrawable(Color.TRANSPARENT));
+        return highlight;
+    }
+
+    /** focusRow: -1 keeps the focus where it is (navigating the page list). */
+    private void showPage(int page, int focusRow) {
+        if (page < 0) return;
+        currentPage = page;
+        for (int i = 0; i < nav.getChildCount(); i++) {
+            View child = nav.getChildAt(i);
+            if (child.getTag() instanceof Integer) child.setSelected((Integer) child.getTag() == page);
+        }
+        pageTitle.setText(pageNames.get(page));
+        rows.removeAllViews();
+        footer.setText("");
+        JSONObject data = pages.get(page);
+        if (data == null) {
+            buildGZeroPage();
+        } else {
+            try {
+                JSONArray list = data.getJSONArray("rows");
+                for (int i = 0; i < list.length(); i++) addGameRow(list.getJSONObject(i));
+            } catch (JSONException exception) {
+                Log.e("GZero64", "Bad page JSON", exception);
+            }
+        }
+        if (focusRow >= 0) {
+            int focusable = 0;
+            for (int i = 0; i < rows.getChildCount(); i++) {
+                View child = rows.getChildAt(i);
+                if (!child.isFocusable()) continue;
+                if (focusable++ == focusRow || i == rows.getChildCount() - 1) {
+                    child.requestFocus();
+                    break;
+                }
             }
         }
     }
 
-    private void addVolumeRow(int label, final String name) {
-        final String[] steps = new String[11];
-        for (int i = 0; i <= 10; i++) steps[i] = (i * 10) + "%";
-        addRow(label, new Row() {
-            @Override public String[] values() { return steps; }
-            @Override public int get() { return Math.max(0, Math.min(10, Math.round(value(name) / 10f))); }
-            @Override public void set(int value) { setInt(name, value * 10); }
+    /** Position of a row among the page's focusable rows, to restore the focus after a reload. */
+    private int focusIndex(View row) {
+        int index = 0;
+        for (int i = 0; i < rows.getChildCount(); i++) {
+            View child = rows.getChildAt(i);
+            if (child == row) return index;
+            if (child.isFocusable()) index++;
+        }
+        return 0;
+    }
+
+    // ── G-Zero 64 page ──────────────────────────────────────────────────────────────────────────
+
+    private String[] array(int res) {
+        return activity.getResources().getStringArray(res);
+    }
+
+    private void buildGZeroPage() {
+        addChoice(R.string.quick_format, R.string.quick_format_tip, new Choice() {
+            @Override public String[] values() { return array(R.array.quick_formats); }
+            @Override public int get() { return format(activity); }
+            @Override public void set(int value) {
+                activity.getSharedPreferences("game", Context.MODE_PRIVATE).edit().putInt("format", value).apply();
+                applyFormat(activity, value);
+            }
+        });
+        addChoice(R.string.quick_resolution, R.string.quick_resolution_tip, new Choice() {
+            @Override public String[] values() { return array(R.array.quick_resolutions); }
+            @Override public int get() { return nearest(SCALES, value(RESOLUTION)); }
+            @Override public void set(int value) { setSetting(RESOLUTION, true, SCALES[value]); }
+        });
+        addChoice(R.string.quick_fsr, R.string.quick_fsr_tip, new Choice() {
+            @Override public String[] values() { return array(R.array.quick_off_on); }
+            @Override public int get() { return value(FSR) != 0 ? 1 : 0; }
+            @Override public void set(int value) { setSetting(FSR, false, value); }
+        });
+        addChoice(R.string.quick_fsr_sharpness, R.string.quick_fsr_sharpness_tip, new Choice() {
+            @Override public String[] values() { return array(R.array.quick_sharpness); }
+            @Override public int get() { return nearest(SHARPNESS, value(FSR_SHARPNESS)); }
+            @Override public void set(int value) { setSetting(FSR_SHARPNESS, true, SHARPNESS[value]); }
+        });
+        addChoice(R.string.quick_antialiasing, R.string.quick_antialiasing_tip, new Choice() {
+            @Override public String[] values() { return array(R.array.quick_antialiasing); }
+            @Override public int get() {
+                int msaa = Math.round(value(MSAA));
+                if (msaa >= 4) return 3;
+                if (msaa == 2) return 2;
+                return value(FXAA) != 0 ? 1 : 0;
+            }
+            @Override public void set(int value) {
+                setSetting(FXAA, false, value == 1 ? 1 : 0);
+                setSetting(MSAA, false, value == 3 ? 4 : value == 2 ? 2 : 1);
+            }
+        });
+        addChoice(R.string.quick_fps, 0, new Choice() {
+            @Override public String[] values() { return array(R.array.quick_off_on); }
+            @Override public int get() { return value(FPS_COUNTER) != 0 ? 1 : 0; }
+            @Override public void set(int value) { setSetting(FPS_COUNTER, false, value); }
         });
     }
 
-    private void addHeader(int text) {
-        TextView header = new TextView(activity);
-        header.setText(text);
-        header.setTextSize(12);
-        header.setLetterSpacing(0.15f);
-        header.setTextColor(0xFFFFC452);
-        header.setPadding(dp(8), dp(12), 0, dp(4));
-        rows.addView(header);
+    private void setSetting(String name, boolean isFloat, float value) {
+        values.put(name, value);
+        GameBridge.nativeSet(name, isFloat, value);
     }
 
-    private void addRow(int label, final Row row) {
+    private void addChoice(int label, final int tip, final Choice choice) {
+        final TextView value = new TextView(activity);
+        final Runnable refresh = new Runnable() {
+            @Override public void run() {
+                String[] values = choice.values();
+                value.setText(values[Math.max(0, Math.min(values.length - 1, choice.get()))]);
+            }
+        };
+        refresh.run();
+        addValueRow(activity.getString(label), tip != 0 ? activity.getString(tip) : "", null, value, true,
+            new Stepper() {
+                @Override public void step(int delta) {
+                    int n = choice.values().length;
+                    choice.set(((choice.get() + delta) % n + n) % n);
+                    refresh.run();
+                }
+            });
+    }
+
+    // ── G-Diffuser rows ─────────────────────────────────────────────────────────────────────────
+
+    private interface Stepper {
+        void step(int delta);
+    }
+
+    private void addGameRow(final JSONObject row) throws JSONException {
+        final String type = row.getString("type");
+        final String label = row.getString("label");
+        final String tip = row.optString("tip", "");
+        final String note = row.optString("note", "");
+        final String disabled = row.optString("disabled", "");
+        final boolean enabled = disabled.isEmpty();
+        final String describe = enabled ? tip : disabled.trim().isEmpty() ? tip : disabled;
+        switch (type) {
+            case "header": {
+                TextView header = new TextView(activity);
+                header.setText(label);
+                header.setTextSize(12);
+                header.setLetterSpacing(0.1f);
+                header.setTextColor(0xFFFFC452);
+                header.setPadding(dp(8), dp(12), 0, dp(2));
+                rows.addView(header);
+                return;
+            }
+            case "text": {
+                TextView text = new TextView(activity);
+                text.setText(label);
+                text.setTextSize(12);
+                text.setTextColor(0xFF8E92AA);
+                text.setPadding(dp(8), dp(4), dp(8), dp(4));
+                rows.addView(text);
+                return;
+            }
+            case "button": {
+                Button button = new Button(activity);
+                button.setText(label);
+                button.setAllCaps(false);
+                button.setEnabled(enabled);
+                button.setOnClickListener(new View.OnClickListener() {
+                    @Override public void onClick(final View view) {
+                        final int focus = focusIndex(view);
+                        apply(new Runnable() {
+                            @Override public void run() {
+                                GameBridge.nativeMenuPress(row.optString("id"));
+                            }
+                        }, focus);
+                    }
+                });
+                button.setOnFocusChangeListener(footerOnFocus(describe));
+                rows.addView(button);
+                return;
+            }
+            default:
+                break;
+        }
+        final double current = row.optDouble("value", 0);
+        final TextView value = new TextView(activity);
+        Stepper stepper;
+        if ("check".equals(type) || "radio".equals(type)) {
+            String[] onOff = array(R.array.quick_off_on);
+            value.setText("radio".equals(type) ? (current != 0 ? "●" : "○") : onOff[current != 0 ? 1 : 0]);
+            stepper = new Stepper() {
+                @Override public void step(int delta) {
+                    double next = "radio".equals(type) ? 1 : (current != 0 ? 0 : 1);
+                    set(row, next);
+                }
+            };
+        } else if ("combo".equals(type)) {
+            final JSONArray items = row.getJSONArray("items");
+            final int count = Math.max(1, items.length());
+            int index = (int) Math.max(0, Math.min(count - 1, Math.round(current)));
+            value.setText(items.optString(index, String.valueOf(index)));
+            stepper = new Stepper() {
+                @Override public void step(int delta) {
+                    set(row, ((Math.round(current) + delta) % count + count) % count);
+                }
+            };
+        } else {
+            final double min = row.optDouble("min", 0), max = row.optDouble("max", 1);
+            double step = row.optDouble("step", 1);
+            // Sliders with fine steps would take hundreds of presses: about 20 steps end to end.
+            if ((max - min) / step > 40) step = niceStep((max - min) / 20);
+            final double inc = step;
+            value.setText(formatValue(row, current));
+            stepper = new Stepper() {
+                @Override public void step(int delta) {
+                    double next = Math.max(min, Math.min(max, current + delta * inc));
+                    if ("int".equals(type)) next = Math.round(next);
+                    set(row, next);
+                }
+            };
+        }
+        addValueRow(label, describe, note, value, enabled, stepper);
+    }
+
+    private static double niceStep(double raw) {
+        double magnitude = Math.pow(10, Math.floor(Math.log10(raw)));
+        double[] nice = {1, 2, 5, 10};
+        for (double n : nice) if (raw <= n * magnitude) return n * magnitude;
+        return 10 * magnitude;
+    }
+
+    /** The game's printf format, with UIWidgets' percentage display (value x 100). */
+    private static String formatValue(JSONObject row, double value) {
+        if (row.optBoolean("percent")) return Math.round(value * 100) + "%";
+        String format = row.optString("format", "");
+        boolean isInt = "int".equals(row.optString("type"));
+        if (format.isEmpty()) format = isInt ? "%d" : "%.2f";
+        try {
+            return isInt ? String.format(Locale.ROOT, format, Math.round(value))
+                         : String.format(Locale.ROOT, format, value);
+        } catch (RuntimeException exception) {
+            return isInt ? String.valueOf(Math.round(value)) : String.format(Locale.ROOT, "%.2f", value);
+        }
+    }
+
+    private void set(final JSONObject row, final double value) {
+        final String id = row.optString("id");
+        apply(new Runnable() {
+            @Override public void run() { GameBridge.nativeMenuSet(id, value); }
+        }, focusIndex(rows.findFocus() != null ? rowOf(rows.findFocus()) : null));
+    }
+
+    private View rowOf(View view) {
+        while (view != null && view.getParent() != rows) {
+            view = view.getParent() instanceof View ? (View) view.getParent() : null;
+        }
+        return view;
+    }
+
+    /** Runs a change on the game, then reloads the page so values and disabled rows are current. */
+    private void apply(final Runnable change, final int focus) {
+        if (busy) return;
+        busy = true;
+        final int page = currentPage;
+        final int scroll = rowScroll.getScrollY();
+        worker.execute(new Runnable() {
+            @Override public void run() {
+                try {
+                    change.run();
+                } catch (UnsatisfiedLinkError error) {
+                    Log.w("GZero64", "Game library not loaded", error);
+                }
+                final String json;
+                String read = "";
+                try {
+                    read = GameBridge.nativeMenuJson();
+                } catch (UnsatisfiedLinkError ignored) {
+                }
+                json = read;
+                ui.post(new Runnable() {
+                    @Override public void run() {
+                        busy = false;
+                        if (!dialog.isShowing() || json.isEmpty()) return;
+                        parse(json);
+                        showPage(Math.min(page, pages.size() - 1), focus);
+                        rowScroll.scrollTo(0, scroll);
+                    }
+                });
+            }
+        });
+    }
+
+    private View.OnFocusChangeListener footerOnFocus(final String text) {
+        return new View.OnFocusChangeListener() {
+            @Override public void onFocusChange(View view, boolean hasFocus) {
+                if (hasFocus) footer.setText(text);
+            }
+        };
+    }
+
+    private void addValueRow(String label, String describe, String note, final TextView value, boolean enabled,
+                             final Stepper stepper) {
         final LinearLayout line = new LinearLayout(activity);
         line.setGravity(Gravity.CENTER_VERTICAL);
         line.setMinimumHeight(dp(44));
         line.setPadding(dp(8), 0, dp(4), 0);
         line.setFocusable(true);
         line.setClickable(true);
-        StateListDrawable highlight = new StateListDrawable();
-        highlight.addState(new int[] {android.R.attr.state_focused}, new ColorDrawable(0x40FFC452));
-        highlight.addState(new int[] {android.R.attr.state_pressed}, new ColorDrawable(0x30FFC452));
-        highlight.addState(new int[0], new ColorDrawable(Color.TRANSPARENT));
-        line.setBackground(highlight);
+        line.setBackground(highlight());
+        line.setAlpha(enabled ? 1f : 0.45f);
+        line.setOnFocusChangeListener(footerOnFocus(describe));
 
         TextView name = new TextView(activity);
-        name.setText(label);
+        name.setText(note == null || note.isEmpty() ? label : label + "  " + note);
         name.setTextColor(Color.WHITE);
         name.setTextSize(15);
         line.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
-        final TextView value = new TextView(activity);
         value.setTextColor(0xFFFFD98A);
         value.setTextSize(15);
         value.setGravity(Gravity.CENTER);
-        final Runnable refresh = new Runnable() {
-            @Override public void run() {
-                String[] values = row.values();
-                value.setText(values[Math.max(0, Math.min(values.length - 1, row.get()))]);
-            }
-        };
-        refresh.run();
+        value.setSingleLine(true);
+        value.setEllipsize(TextUtils.TruncateAt.END);
         Button left = arrow("‹"), right = arrow("›");
-        left.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View view) { step(row, -1); refresh.run(); }
-        });
-        right.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View view) { step(row, 1); refresh.run(); }
-        });
-        line.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View view) { step(row, 1); refresh.run(); }
-        });
-        // Controller: up/down move between rows (default focus), left/right change the value.
+        if (enabled) {
+            left.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view) { line.requestFocus(); stepper.step(-1); }
+            });
+            right.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view) { line.requestFocus(); stepper.step(1); }
+            });
+            line.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view) { stepper.step(1); }
+            });
+        }
+        // Controller: up/down move between rows, left/right change the value.
         line.setOnKeyListener(new View.OnKeyListener() {
             @Override public boolean onKey(View view, int keyCode, KeyEvent event) {
                 if (keyCode != KeyEvent.KEYCODE_DPAD_LEFT && keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) return false;
-                if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                    step(row, keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1);
-                    refresh.run();
+                if (event.getAction() == KeyEvent.ACTION_DOWN && line.getAlpha() == 1f) {
+                    stepper.step(keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1);
                 }
                 return true;
             }
         });
         line.addView(left, new LinearLayout.LayoutParams(dp(40), dp(40)));
-        line.addView(value, new LinearLayout.LayoutParams(dp(130), LinearLayout.LayoutParams.WRAP_CONTENT));
+        line.addView(value, new LinearLayout.LayoutParams(dp(150), LinearLayout.LayoutParams.WRAP_CONTENT));
         line.addView(right, new LinearLayout.LayoutParams(dp(40), dp(40)));
         rows.addView(line, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
-    }
-
-    private static void step(Row row, int delta) {
-        int n = row.values().length;
-        if (n > 0) row.set(((row.get() + delta) % n + n) % n);
     }
 
     private Button arrow(String symbol) {

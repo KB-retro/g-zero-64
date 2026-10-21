@@ -899,6 +899,11 @@ static std::vector<std::string> findArchivePaths(const char* argv0) {
     return archives;
 }
 
+#ifdef __ANDROID__
+extern "C" int gdx_android_menu_open(void);
+extern "C" void gdx_android_bridge_tick(void);
+#endif
+
 int main(int argc, char** argv) {
     // Must precede every log call this process makes. Precedence rules in port/gdx_dev_gates.h.
     gdx_dev_gates_init_env();
@@ -1424,6 +1429,16 @@ int main(int argc, char** argv) {
     logStep("entering frame loop");
     auto w = ctx->GetWindow();
     while (w != nullptr && w->IsRunning()) {
+#ifdef __ANDROID__
+        // G-Zero 64: the Android quick menu holds the game still. Events keep draining and the
+        // menu's setting requests are served; the last frame stays on screen.
+        if (gdx_android_menu_open() != 0) {
+            w->HandleEvents();
+            gdx_android_bridge_tick();
+            SDL_Delay(16);
+            continue;
+        }
+#endif
         // The one per-frame refresh point for every developer gate: one CVar read per gate here
         // means no hot path (per draw call, per display-list command, per audio frame) ever hashes
         // a CVar name, and everything downstream this frame sees a consistent snapshot. The Dev

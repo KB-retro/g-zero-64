@@ -30,6 +30,13 @@ class GdxMenu final : public Ship::GuiWindow {
     void Draw() override;
     void DrawElement() override;
 
+    // ── G-Zero 64 Android quick menu (port/gdx_menu_bridge.cpp, game thread only) ──────────────
+    // The registry as JSON for the Android menu, and the two ways it changes things: set a value
+    // (same effect as using the control here, callback included) or press a button.
+    std::string BridgeExportJson();
+    bool BridgeSet(const std::string& id, double value);
+    bool BridgePress(const std::string& id);
+
   protected:
     void InitElement() override;
     void UpdateElement() override;

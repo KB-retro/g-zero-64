@@ -45,6 +45,14 @@
     <string name="quick_resume">Continue</string>
     <string name="quick_exit">Exit</string>
     <string name="quick_exit_confirm">Exit the game? Anything not saved will be lost.</string>
+    <string name="quick_page_gzero">Picture</string>
+    <string name="quick_pages_hint">L1 / R1: change page · ← →: change value</string>
+    <string name="quick_loading">Loading…</string>
+    <string name="quick_format_tip">Automatic uses 16:9 on wide screens and 4:3 on squarer ones.</string>
+    <string name="quick_resolution_tip">Resolution the game is drawn at, relative to the screen. Higher is sharper and heavier.</string>
+    <string name="quick_fsr_tip">AMD FSR 1.0 upscaling: useful with internal resolution below 100%.</string>
+    <string name="quick_fsr_sharpness_tip">Sharpening FSR adds after upscaling.</string>
+    <string name="quick_antialiasing_tip">FXAA is light; MSAA is cleaner but heavier.</string>
     <string name="quick_cancel">Cancel</string>
     <string-array name="quick_formats">
         <item>Automatic</item>

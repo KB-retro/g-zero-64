@@ -8,7 +8,9 @@
 #include <jni.h>
 
 #include <chrono>
+#include <atomic>
 #include <condition_variable>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -19,6 +21,8 @@
 #include "ship/Context.h"
 #include "ship/window/Window.h"
 #include "ship/window/gui/Gui.h"
+
+#include "gdx_menu.h"
 
 namespace {
 
@@ -36,6 +40,39 @@ std::mutex sMutex;
 std::condition_variable sServed;
 std::vector<Request> sWrites;
 std::vector<Request*> sReads;
+
+// Work the quick menu needs done on the game thread, waited for by the caller.
+struct Job {
+    std::function<void()> work;
+    bool done = false;
+};
+std::vector<Job*> sJobs;
+
+// While the Android quick menu is open the main loop holds the game still (gdx_android_menu_open).
+std::atomic<bool> sMenuOpen{ false };
+
+std::shared_ptr<GdxMenu> Menu() {
+    auto window = Ship::Context::GetInstance()->GetWindow();
+    auto gui = window != nullptr ? window->GetGui() : nullptr;
+    return gui != nullptr ? std::dynamic_pointer_cast<GdxMenu>(gui->GetMenu()) : nullptr;
+}
+
+// Runs work on the game thread and waits up to timeoutMs for it. False if it did not run.
+bool RunOnGameThread(std::function<void()> work, int timeoutMs) {
+    Job job{ std::move(work) };
+    std::unique_lock<std::mutex> lock(sMutex);
+    sJobs.push_back(&job);
+    if (sServed.wait_for(lock, std::chrono::milliseconds(timeoutMs), [&] { return job.done; })) {
+        return true;
+    }
+    for (auto it = sJobs.begin(); it != sJobs.end(); ++it) {
+        if (*it == &job) {
+            sJobs.erase(it);
+            break;
+        }
+    }
+    return job.done;
+}
 
 std::shared_ptr<Ship::GuiWindow> FpsWindow() {
     auto window = Ship::Context::GetInstance()->GetWindow();
@@ -95,6 +132,10 @@ std::string Utf(JNIEnv* env, jstring s) {
 
 } // namespace
 
+extern "C" int gdx_android_menu_open(void) {
+    return sMenuOpen.load() ? 1 : 0;
+}
+
 extern "C" void gdx_android_bridge_tick(void) {
     std::vector<Request> writes;
     {
@@ -105,6 +146,12 @@ extern "C" void gdx_android_bridge_tick(void) {
             r->done = true;
         }
         sReads.clear();
+        // Jobs run under the lock: a waiting caller only reads its own job after done is set.
+        for (Job* job : sJobs) {
+            job->work();
+            job->done = true;
+        }
+        sJobs.clear();
     }
     sServed.notify_all();
     for (const Request& r : writes) {
@@ -177,5 +224,50 @@ extern "C" JNIEXPORT void JNICALL Java_org_patrullaretro_gzero64_GameBridge_nati
     r.value = value;
     std::lock_guard<std::mutex> lock(sMutex);
     sWrites.push_back(std::move(r));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_org_patrullaretro_gzero64_GameBridge_nativeSetMenuOpen(JNIEnv*, jclass,
+                                                                                             jboolean open) {
+    sMenuOpen.store(open != JNI_FALSE);
+}
+
+// The desktop menu's registry as JSON (gdx_menu_bridge.cpp); "" if the game did not answer.
+extern "C" JNIEXPORT jstring JNICALL Java_org_patrullaretro_gzero64_GameBridge_nativeMenuJson(JNIEnv* env, jclass) {
+    std::string json;
+    RunOnGameThread(
+        [&json] {
+            auto menu = Menu();
+            if (menu != nullptr) {
+                json = menu->BridgeExportJson();
+            }
+        },
+        1500);
+    return env->NewStringUTF(json.c_str());
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_org_patrullaretro_gzero64_GameBridge_nativeMenuSet(JNIEnv* env, jclass,
+                                                                                            jstring id, jdouble value) {
+    const std::string key = Utf(env, id);
+    bool ok = false;
+    RunOnGameThread(
+        [&] {
+            auto menu = Menu();
+            ok = menu != nullptr && menu->BridgeSet(key, value);
+        },
+        1500);
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_org_patrullaretro_gzero64_GameBridge_nativeMenuPress(JNIEnv* env, jclass,
+                                                                                              jstring id) {
+    const std::string key = Utf(env, id);
+    bool ok = false;
+    RunOnGameThread(
+        [&] {
+            auto menu = Menu();
+            ok = menu != nullptr && menu->BridgePress(key);
+        },
+        1500);
+    return ok ? JNI_TRUE : JNI_FALSE;
 }
 #endif

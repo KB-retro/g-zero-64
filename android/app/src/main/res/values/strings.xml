@@ -48,6 +48,14 @@
     <string name="quick_resume">Continuar</string>
     <string name="quick_exit">Salir</string>
     <string name="quick_exit_confirm">¿Salir del juego? Lo que no hayas guardado se perderá.</string>
+    <string name="quick_page_gzero">Imagen</string>
+    <string name="quick_pages_hint">L1 / R1: cambiar de página · ← →: cambiar valor</string>
+    <string name="quick_loading">Cargando…</string>
+    <string name="quick_format_tip">Automático usa 16:9 en pantallas panorámicas y 4:3 en las más cuadradas.</string>
+    <string name="quick_resolution_tip">Resolución a la que se dibuja el juego respecto a la pantalla. Más alta, más nítida y más exigente.</string>
+    <string name="quick_fsr_tip">Escalado AMD FSR 1.0: útil con resolución interna por debajo del 100 %.</string>
+    <string name="quick_fsr_sharpness_tip">Nitidez que añade FSR tras escalar.</string>
+    <string name="quick_antialiasing_tip">FXAA es ligero; MSAA es más limpio pero más exigente.</string>
     <string name="quick_cancel">Cancelar</string>
     <string-array name="quick_formats">
         <item>Automático</item>

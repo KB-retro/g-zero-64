@@ -13,6 +13,18 @@ final class GameBridge {
 
     static native void nativeSet(String name, boolean isFloat, float value);
 
+    /** While open, the game holds still and keeps serving the calls below. */
+    static native void nativeSetMenuOpen(boolean open);
+
+    /** G-Diffuser's menu as JSON: sections, pages and rows with values and ranges. "" on no answer. */
+    static native String nativeMenuJson();
+
+    /** Changes one row as the desktop menu would (callback included). */
+    static native boolean nativeMenuSet(String id, double value);
+
+    /** Presses a button row. */
+    static native boolean nativeMenuPress(String id);
+
     static void setInt(String name, int value) {
         nativeSet(name, false, value);
     }
