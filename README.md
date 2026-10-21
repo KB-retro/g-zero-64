@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/branding/gzero64-banner.png" alt="G-Zero 64" width="900">
+<img src="docs/branding/gzero64-cover.jpg" alt="G-Zero 64" width="380">
 
 **El clásico de carreras de naves futuristas de la consola de 64 bits, nativo en Android.**
 

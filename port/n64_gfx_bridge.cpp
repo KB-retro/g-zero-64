@@ -17,6 +17,8 @@
 #include <atomic>
 #include <dlfcn.h>
 #include <unistd.h>
+#include <time.h>
+#include <sys/mman.h> // mincore (Android probe fallback)
 #ifdef __APPLE__
 #include <mach-o/dyld.h>      // _NSGetExecutablePath, _dyld_get_image_header
 #include <mach-o/loader.h>    // mach_header_64, segment_command_64, LC_SEGMENT_64
@@ -2116,6 +2118,24 @@ static const MapsRegion* FindMapsRegion(uintptr_t addr) {
     return nullptr;
 }
 
+// An Android app's /proc/self/maps runs to thousands of lines (ART, framework libraries), so a
+// re-parse costs milliseconds instead of microseconds, and probes of genuinely unmapped values
+// would re-parse on every miss. There, misses re-parse at most every 100 ms; regions mapped after
+// boot are still picked up, just not on the very probe that first touches them.
+static bool MapsRefreshAllowed() {
+#ifdef __ANDROID__
+    static int64_t sLastParseNs = 0;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    const int64_t now = static_cast<int64_t>(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
+    if (sLastParseNs != 0 && now - sLastParseNs < 100000000LL) {
+        return false;
+    }
+    sLastParseNs = now;
+#endif
+    return true;
+}
+
 // Copies the region out by value: a subsequent probe can re-parse and reallocate sMaps.
 static bool PosixRegionFor(uintptr_t addr, MapsRegion& out) {
     if (sMaps.empty()) {
@@ -2123,6 +2143,22 @@ static bool PosixRegionFor(uintptr_t addr, MapsRegion& out) {
     }
     const MapsRegion* r = FindMapsRegion(addr);
     if (r == nullptr) {
+        if (!MapsRefreshAllowed()) {
+#ifdef __ANDROID__
+            // Between re-parses, ask the kernel about this one page: mincore fails with ENOMEM
+            // on unmapped memory. A mapped page is reported as a one-page readable region.
+            const uintptr_t pageSize = static_cast<uintptr_t>(sysconf(_SC_PAGESIZE));
+            const uintptr_t page = addr & ~(pageSize - 1);
+            unsigned char resident = 0;
+            if (mincore(reinterpret_cast<void*>(page), pageSize, &resident) == 0) {
+                out.begin = page;
+                out.end = page + pageSize;
+                out.readable = true;
+                return true;
+            }
+#endif
+            return false;
+        }
         ParseMemoryRegions(); // one re-parse then re-query
         r = FindMapsRegion(addr);
     }
