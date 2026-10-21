@@ -12,7 +12,8 @@ de upstream salvo que se pida.
   (secretos `GZ64_KEYSTORE_B64`, `GZ64_KEYSTORE_PASSWORD`, alias `gzero64`), versión 0.1.<run>.
 - Lanzador: Jugar / Ajustes / Cambiar carpeta; no arrancar solo al elegir carpeta; inicio
   automático opcional y cancelable tocando o pulsando el mando.
-- Menú rápido (Atrás o Select+Start): Continuar (verde, izquierda) y Salir (rojo, derecha).
+- Menú rápido solo con Atrás (no Select+Start): opciones de imagen y sonido; Continuar (verde,
+  izquierda) y Salir (rojo, derecha). Sustituye al menú de G-Diffuser, que en Android no se abre.
 - Pensado para consolas Android (Retroid / Odin 2 Portal, RG477M con Mali).
 
 ## Android
@@ -23,4 +24,9 @@ de upstream salvo que se pida.
   `GDX_EXTRACT_BIN`, exportadas por `GameActivity` y leídas en `port/gdx_self_exe.h`.
 - Bionic no tiene ucontext: el planificador usa `port/gdx_fiber_asm.c` (aarch64/x86-64). Se prueba en
   Linux con `-DGDX_FIBER_ASM=ON`.
+- Menú rápido: `QuickMenuDialog.java` lee y cambia CVars a través de `port/gdx_android_bridge.cpp`
+  (cola aplicada por el hilo del juego en cada fotograma). Pausa el juego mientras está abierto.
+- Parches de submódulos en `android/patches/<submódulo>/`, aplicados al configurar en Android:
+  GLES highp, Select solo cierra el menú, FXAA/FSR 1.0 (`gGZ64.Fxaa`, `gGZ64.Fsr`, `gGZ64.FsrSharpness`).
+- Textos del menú de G-Diffuser y de la configuración inicial: `port/gdx_i18n*` (español por defecto).
 - Ramas `ci/**` compilan en Actions solo para comprobar; los errores salen como anotaciones.

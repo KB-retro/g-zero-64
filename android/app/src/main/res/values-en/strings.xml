@@ -29,8 +29,57 @@
     <string name="settings_back">Back</string>
     <string name="port_credits_body">G-Zero 64 by &lt;a href="https://github.com/KB-retro"&gt;KB-retro&lt;/a&gt; · &lt;a href="https://github.com/KB-retro/g-zero-64/commit/%2$s"&gt;version %1$s&lt;/a&gt;&lt;br&gt;&lt;br&gt;Android port based on &lt;a href="https://github.com/Zorkats/G-Diffuser"&gt;G-Diffuser&lt;/a&gt; by Zorkats (MIT license),&lt;br&gt;built on the &lt;a href="https://github.com/inspectredc/fzerox"&gt;inspectredc/fzerox&lt;/a&gt; decompilation, &lt;a href="https://github.com/Kenix3/libultraship"&gt;libultraship&lt;/a&gt; and &lt;a href="https://github.com/HarbourMasters/Torch"&gt;Torch&lt;/a&gt;.&lt;br&gt;No game data included: you need your own dumps.</string>
     <string name="quick_title">QUICK MENU</string>
-    <string name="quick_version">G-Zero 64 · version %1$s</string>
-    <string name="quick_options">Game options (graphics, sound, controls)</string>
+    <string name="quick_section_picture">PICTURE</string>
+    <string name="quick_section_sound">SOUND</string>
+    <string name="quick_format">Picture format</string>
+    <string name="quick_resolution">Internal resolution</string>
+    <string name="quick_fsr">FSR 1.0</string>
+    <string name="quick_fsr_sharpness">FSR sharpness</string>
+    <string name="quick_antialiasing">Anti-aliasing</string>
+    <string name="quick_texture_filter">Texture filter</string>
+    <string name="quick_borders">Black borders</string>
+    <string name="quick_draw_distance">Draw distance</string>
+    <string name="quick_fps">FPS counter</string>
+    <string name="quick_music">Music</string>
+    <string name="quick_sfx">Effects</string>
     <string name="quick_resume">Continue</string>
     <string name="quick_exit">Exit</string>
+    <string name="quick_exit_confirm">Exit the game? Anything not saved will be lost.</string>
+    <string name="quick_cancel">Cancel</string>
+    <string-array name="quick_formats">
+        <item>Automatic</item>
+        <item>Widescreen 16:9</item>
+        <item>Classic 4:3</item>
+    </string-array>
+    <string-array name="quick_resolutions">
+        <item>50%</item>
+        <item>75%</item>
+        <item>100%</item>
+        <item>150%</item>
+        <item>200%</item>
+    </string-array>
+    <string-array name="quick_off_on">
+        <item>Off</item>
+        <item>On</item>
+    </string-array>
+    <string-array name="quick_sharpness">
+        <item>Soft</item>
+        <item>Medium</item>
+        <item>High</item>
+    </string-array>
+    <string-array name="quick_antialiasing">
+        <item>Off</item>
+        <item>FXAA</item>
+        <item>MSAA 2x</item>
+        <item>MSAA 4x</item>
+    </string-array>
+    <string-array name="quick_texture_filters">
+        <item>Original</item>
+        <item>Smooth</item>
+        <item>Sharp</item>
+    </string-array>
+    <string-array name="quick_borders">
+        <item>Show</item>
+        <item>Remove</item>
+    </string-array>
 </resources>

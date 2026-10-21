@@ -1,0 +1,369 @@
+diff --git a/include/fast/backends/gfx_opengl.h b/include/fast/backends/gfx_opengl.h
+index d21772e..bccc4fa 100644
+--- a/include/fast/backends/gfx_opengl.h
++++ b/include/fast/backends/gfx_opengl.h
+@@ -134,6 +134,8 @@ class GfxRenderingAPIOGL final : public GfxRenderingAPI {
+     void SelectTextureFb(int fbId) override;
+     uintptr_t ApplyPostShader(int srcFbId, int mode, uint32_t nativeW, uint32_t nativeH, uint32_t outW,
+                               uint32_t outH) override;
++    uintptr_t Gz64ApplyFilters(int srcFbId, uint32_t outW, uint32_t outH, bool fxaa, bool fsr,
++                               float sharpness) override;
+     uintptr_t ApplyPostShaderChain(int srcFbId, const GdxPostShaderPipeline& pipeline, uint32_t nativeW,
+                                    uint32_t nativeH, uint32_t outW, uint32_t outH) override;
+     void DeleteTexture(uint32_t texId) override;
+@@ -210,6 +212,10 @@ class GfxRenderingAPIOGL final : public GfxRenderingAPI {
+     std::unordered_map<std::string, std::pair<PostShaderProgramOGL, uint64_t>> mPostShaderCustomCache;
+     int mPostDownsampleFb = -1;
+     int mPostOutputFb = -1;
++    // G-Zero 64 FXAA / FSR passes (Gz64ApplyFilters): programs compile on first use, 0 = failed.
++    GLuint mGz64Programs[3] = { 0, 0, 0 }; // FXAA, EASU, RCAS
++    bool mGz64Attempted[3] = { false, false, false };
++    int mGz64Fb[3] = { -1, -1, -1 };
+ #if defined(__APPLE__) || defined(USE_OPENGLES)
+     GLuint mPostVao = 0; // attribute-less fullscreen triangle still needs a VAO on core profiles
+ #endif
+diff --git a/include/fast/backends/gfx_rendering_api.h b/include/fast/backends/gfx_rendering_api.h
+index 5953894..2c66948 100644
+--- a/include/fast/backends/gfx_rendering_api.h
++++ b/include/fast/backends/gfx_rendering_api.h
+@@ -98,6 +98,12 @@ class GfxRenderingAPI {
+                                            uint32_t nativeH, uint32_t outW, uint32_t outH) {
+         return 0;
+     }
++    // G-Zero 64: FXAA and/or FSR 1.0 (EASU + RCAS) on srcFbId at full resolution. FSR upscales to
++    // outW x outH; FXAA alone keeps the source size. Returns the result's texture id, 0 = not applied.
++    virtual uintptr_t Gz64ApplyFilters(int srcFbId, uint32_t outW, uint32_t outH, bool fxaa, bool fsr,
++                                       float sharpness) {
++        return 0;
++    }
+     virtual void DeleteTexture(uint32_t texId) = 0;
+     virtual void SetTextureFilter(FilteringMode mode) = 0;
+     virtual FilteringMode GetTextureFilter() = 0;
+diff --git a/src/fast/backends/gfx_opengl.cpp b/src/fast/backends/gfx_opengl.cpp
+index 8ca4013..c772669 100644
+--- a/src/fast/backends/gfx_opengl.cpp
++++ b/src/fast/backends/gfx_opengl.cpp
+@@ -1661,6 +1661,250 @@ uintptr_t GfxRenderingAPIOGL::ApplyPostShader(int srcFbId, int mode, uint32_t na
+     return (uintptr_t)mFrameBuffers[mPostOutputFb].clrbuf;
+ }
+ 
++// ---------------------------------------------------------------------------------------------
++// G-Zero 64: FXAA and FSR 1.0 (EASU upscale + RCAS sharpen) at full resolution.
++//
++// Unlike ApplyPostShader these read the rendered frame directly (no downsample to N64 size). The
++// FSR passes follow AMD FidelityFX FSR 1.0 (MIT): EASU's 12-tap edge-adaptive Lanczos-like
++// filter, then RCAS's contrast-adaptive sharpening. Texels are fetched by integer coordinate, so
++// orientation is preserved: the output stores rows the same way as the source.
++// ---------------------------------------------------------------------------------------------
++#if defined(USE_OPENGLES)
++#define GZ64_FS_PRELUDE "#version 300 es\nprecision highp float;\nprecision highp int;\n" \
++                        "in vec2 vUV;\nout vec4 gdxFragColor;\n"
++#elif defined(__APPLE__)
++#define GZ64_FS_PRELUDE "#version 410 core\nin vec2 vUV;\nout vec4 gdxFragColor;\n"
++#else
++#define GZ64_FS_PRELUDE "#version 130\nvarying vec2 vUV;\n#define gdxFragColor gl_FragColor\n"
++#endif
++
++static const char* sGz64FxaaFs = GZ64_FS_PRELUDE
++    "uniform sampler2D uTex;\n"
++    "uniform vec2 uTexel;\n"
++    "vec3 S(vec2 p) { return " GDX_POST_SAMPLE "(uTex, p).rgb; }\n"
++    "void main() {\n"
++    "    const vec3 kLuma = vec3(0.299, 0.587, 0.114);\n"
++    "    vec2 uv = vUV;\n"
++    "    vec3 rgbM = S(uv);\n"
++    "    float lNW = dot(S(uv + vec2(-1.0, -1.0) * uTexel), kLuma);\n"
++    "    float lNE = dot(S(uv + vec2(1.0, -1.0) * uTexel), kLuma);\n"
++    "    float lSW = dot(S(uv + vec2(-1.0, 1.0) * uTexel), kLuma);\n"
++    "    float lSE = dot(S(uv + vec2(1.0, 1.0) * uTexel), kLuma);\n"
++    "    float lM = dot(rgbM, kLuma);\n"
++    "    float lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE)));\n"
++    "    float lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));\n"
++    "    vec2 dir = vec2(-((lNW + lNE) - (lSW + lSE)), (lNW + lSW) - (lNE + lSE));\n"
++    "    float reduce = max((lNW + lNE + lSW + lSE) * (0.25 / 8.0), 1.0 / 128.0);\n"
++    "    float rcpMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + reduce);\n"
++    "    dir = clamp(dir * rcpMin, vec2(-8.0), vec2(8.0)) * uTexel;\n"
++    "    vec3 rgbA = 0.5 * (S(uv + dir * (1.0 / 3.0 - 0.5)) + S(uv + dir * (2.0 / 3.0 - 0.5)));\n"
++    "    vec3 rgbB = rgbA * 0.5 + 0.25 * (S(uv - dir * 0.5) + S(uv + dir * 0.5));\n"
++    "    float lB = dot(rgbB, kLuma);\n"
++    "    gdxFragColor = vec4((lB < lMin || lB > lMax) ? rgbA : rgbB, 1.0);\n"
++    "}\n";
++
++static const char* sGz64EasuFs = GZ64_FS_PRELUDE
++    "uniform sampler2D uTex;\n"
++    "uniform vec2 uInSize;\n"
++    "uniform vec2 uOutSize;\n"
++    "vec3 F(ivec2 p) { return texelFetch(uTex, clamp(p, ivec2(0), ivec2(uInSize) - 1), 0).rgb; }\n"
++    "float L(vec3 c) { return c.b * 0.5 + (c.r * 0.5 + c.g); }\n"
++    "void SetF(inout vec2 dir, inout float len, float w, float lA, float lB, float lC, float lD, float lE) {\n"
++    "    float lenX = max(abs(lD - lC), abs(lC - lB));\n"
++    "    float dirX = lD - lB;\n"
++    "    dir.x += dirX * w;\n"
++    "    lenX = clamp(abs(dirX) / max(lenX, 1.0e-5), 0.0, 1.0);\n"
++    "    len += lenX * lenX * w;\n"
++    "    float lenY = max(abs(lE - lC), abs(lC - lA));\n"
++    "    float dirY = lE - lA;\n"
++    "    dir.y += dirY * w;\n"
++    "    lenY = clamp(abs(dirY) / max(lenY, 1.0e-5), 0.0, 1.0);\n"
++    "    len += lenY * lenY * w;\n"
++    "}\n"
++    "void Tap(inout vec3 aC, inout float aW, vec2 off, vec2 dir, vec2 len, float lob, float clp, vec3 c) {\n"
++    "    vec2 v = vec2(dot(off, dir), dot(off, vec2(-dir.y, dir.x))) * len;\n"
++    "    float d2 = min(dot(v, v), clp);\n"
++    "    float wB = 0.4 * d2 - 1.0;\n"
++    "    float wA = lob * d2 - 1.0;\n"
++    "    wB *= wB;\n"
++    "    wA *= wA;\n"
++    "    wB = 1.5625 * wB - 0.5625;\n"
++    "    float w = wB * wA;\n"
++    "    aC += c * w;\n"
++    "    aW += w;\n"
++    "}\n"
++    "void main() {\n"
++    "    vec2 pp = gl_FragCoord.xy * (uInSize / uOutSize) - 0.5;\n"
++    "    vec2 fp = floor(pp);\n"
++    "    pp -= fp;\n"
++    "    ivec2 p = ivec2(fp);\n"
++    "    vec3 bC = F(p + ivec2(0, -1)), cC = F(p + ivec2(1, -1));\n"
++    "    vec3 eC = F(p + ivec2(-1, 0)), fC = F(p), gC = F(p + ivec2(1, 0)), hC = F(p + ivec2(2, 0));\n"
++    "    vec3 iC = F(p + ivec2(-1, 1)), jC = F(p + ivec2(0, 1)), kC = F(p + ivec2(1, 1)), lC = F(p + ivec2(2, 1));\n"
++    "    vec3 nC = F(p + ivec2(0, 2)), oC = F(p + ivec2(1, 2));\n"
++    "    float bL = L(bC), cL = L(cC), eL = L(eC), fL = L(fC), gL = L(gC), hL = L(hC);\n"
++    "    float iL = L(iC), jL = L(jC), kL = L(kC), lL = L(lC), nL = L(nC), oL = L(oC);\n"
++    "    vec2 dir = vec2(0.0);\n"
++    "    float len = 0.0;\n"
++    "    SetF(dir, len, (1.0 - pp.x) * (1.0 - pp.y), bL, eL, fL, gL, jL);\n"
++    "    SetF(dir, len, pp.x * (1.0 - pp.y), cL, fL, gL, hL, kL);\n"
++    "    SetF(dir, len, (1.0 - pp.x) * pp.y, fL, iL, jL, kL, nL);\n"
++    "    SetF(dir, len, pp.x * pp.y, gL, jL, kL, lL, oL);\n"
++    "    float dirR = dot(dir, dir);\n"
++    "    bool zro = dirR < 1.0 / 32768.0;\n"
++    "    dirR = zro ? 1.0 : inversesqrt(dirR);\n"
++    "    dir.x = zro ? 1.0 : dir.x;\n"
++    "    dir *= dirR;\n"
++    "    len = len * 0.5;\n"
++    "    len *= len;\n"
++    "    float stretch = dot(dir, dir) / max(abs(dir.x), abs(dir.y));\n"
++    "    vec2 len2 = vec2(1.0 + (stretch - 1.0) * len, 1.0 - 0.5 * len);\n"
++    "    float lob = 0.5 + ((1.0 / 4.0 - 0.04) - 0.5) * len;\n"
++    "    float clp = 1.0 / lob;\n"
++    "    vec3 aC = vec3(0.0);\n"
++    "    float aW = 0.0;\n"
++    "    Tap(aC, aW, vec2(0.0, -1.0) - pp, dir, len2, lob, clp, bC);\n"
++    "    Tap(aC, aW, vec2(1.0, -1.0) - pp, dir, len2, lob, clp, cC);\n"
++    "    Tap(aC, aW, vec2(-1.0, 1.0) - pp, dir, len2, lob, clp, iC);\n"
++    "    Tap(aC, aW, vec2(0.0, 1.0) - pp, dir, len2, lob, clp, jC);\n"
++    "    Tap(aC, aW, vec2(0.0, 0.0) - pp, dir, len2, lob, clp, fC);\n"
++    "    Tap(aC, aW, vec2(-1.0, 0.0) - pp, dir, len2, lob, clp, eC);\n"
++    "    Tap(aC, aW, vec2(1.0, 1.0) - pp, dir, len2, lob, clp, kC);\n"
++    "    Tap(aC, aW, vec2(2.0, 1.0) - pp, dir, len2, lob, clp, lC);\n"
++    "    Tap(aC, aW, vec2(2.0, 0.0) - pp, dir, len2, lob, clp, hC);\n"
++    "    Tap(aC, aW, vec2(1.0, 0.0) - pp, dir, len2, lob, clp, gC);\n"
++    "    Tap(aC, aW, vec2(1.0, 2.0) - pp, dir, len2, lob, clp, oC);\n"
++    "    Tap(aC, aW, vec2(0.0, 2.0) - pp, dir, len2, lob, clp, nC);\n"
++    "    vec3 mn = min(min(fC, gC), min(jC, kC));\n"
++    "    vec3 mx = max(max(fC, gC), max(jC, kC));\n"
++    "    gdxFragColor = vec4(min(mx, max(mn, aC / aW)), 1.0);\n"
++    "}\n";
++
++static const char* sGz64RcasFs = GZ64_FS_PRELUDE
++    "uniform sampler2D uTex;\n"
++    "uniform vec2 uInSize;\n"
++    "uniform float uSharp;\n"
++    "vec3 F(ivec2 p) { return texelFetch(uTex, clamp(p, ivec2(0), ivec2(uInSize) - 1), 0).rgb; }\n"
++    "void main() {\n"
++    "    ivec2 p = ivec2(gl_FragCoord.xy);\n"
++    "    vec3 b = F(p + ivec2(0, -1)), d = F(p + ivec2(-1, 0)), e = F(p);\n"
++    "    vec3 f = F(p + ivec2(1, 0)), h = F(p + ivec2(0, 1));\n"
++    "    vec3 mn4 = min(min(b, d), min(f, h));\n"
++    "    vec3 mx4 = max(max(b, d), max(f, h));\n"
++    "    vec3 hitMin = min(mn4, e) / max(4.0 * mx4, vec3(1.0e-5));\n"
++    "    vec3 hitMax = (1.0 - max(mx4, e)) / min(4.0 * mn4 - 4.0, vec3(-1.0e-5));\n"
++    "    vec3 lobeRGB = max(-hitMin, hitMax);\n"
++    "    float lobe = max(-0.1875, min(max(lobeRGB.r, max(lobeRGB.g, lobeRGB.b)), 0.0)) * uSharp;\n"
++    "    vec3 c = (lobe * (b + d + f + h) + e) / (4.0 * lobe + 1.0);\n"
++    "    gdxFragColor = vec4(clamp(c, 0.0, 1.0), 1.0);\n"
++    "}\n";
++
++uintptr_t GfxRenderingAPIOGL::Gz64ApplyFilters(int srcFbId, uint32_t outW, uint32_t outH, bool fxaa, bool fsr,
++                                                 float sharpness) {
++    if (srcFbId <= 0 || srcFbId >= (int)mFrameBuffers.size() || outW == 0 || outH == 0 || (!fxaa && !fsr)) {
++        return 0;
++    }
++    const char* sources[3] = { sGz64FxaaFs, sGz64EasuFs, sGz64RcasFs };
++    for (int i = 0; i < 3; i++) {
++        if (!mGz64Attempted[i] && ((i == 0 && fxaa) || (i > 0 && fsr))) {
++            mGz64Attempted[i] = true;
++            mGz64Programs[i] = GdxCompilePostProgram(sGdxPostVsSource, sources[i]);
++        }
++    }
++    if ((fxaa && mGz64Programs[0] == 0) || (fsr && (mGz64Programs[1] == 0 || mGz64Programs[2] == 0))) {
++        return 0;
++    }
++    for (int& fb : mGz64Fb) {
++        if (fb < 0) {
++            fb = CreateFramebuffer();
++        }
++    }
++
++    // Same GL state discipline as ApplyPostShader: save what is touched, restore it after.
++    if (mLastScissorEnabled != 0) {
++        mLastScissorEnabled = 0;
++        glDisable(GL_SCISSOR_TEST);
++    }
++    GLint prevProgram = 0;
++    glGetIntegerv(GL_CURRENT_PROGRAM, &prevProgram);
++    GLint prevViewport[4];
++    glGetIntegerv(GL_VIEWPORT, prevViewport);
++    GLint prevActiveTexture = 0;
++    glGetIntegerv(GL_ACTIVE_TEXTURE, &prevActiveTexture);
++    glActiveTexture(GL_TEXTURE0);
++    GLint prevBoundTexture = 0;
++    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevBoundTexture);
++    const GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
++    if (blendWasEnabled) {
++        glDisable(GL_BLEND);
++    }
++#if defined(__APPLE__) || defined(USE_OPENGLES)
++    if (mPostVao == 0) {
++        glGenVertexArrays(1, &mPostVao);
++    }
++    GLint prevVao = 0;
++    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
++    glBindVertexArray(mPostVao);
++#endif
++
++    GLuint curTex = mFrameBuffers[srcFbId].clrbuf;
++    uint32_t curW = mFrameBuffers[srcFbId].width;
++    uint32_t curH = mFrameBuffers[srcFbId].height;
++    int target = 0;
++    auto runPass = [&](GLuint program, uint32_t w, uint32_t h, auto&& setUniforms) {
++        const int fb = mGz64Fb[target];
++        target = (target + 1) % 3;
++        UpdateFramebufferParameters(fb, w, h, 1, true, true, false, false);
++        glBindFramebuffer(GL_FRAMEBUFFER, mFrameBuffers[fb].fbo);
++        glViewport(0, 0, (GLint)w, (GLint)h);
++        glUseProgram(program);
++        glBindTexture(GL_TEXTURE_2D, curTex);
++        glUniform1i(glGetUniformLocation(program, "uTex"), 0);
++        setUniforms(program);
++        glDrawArrays(GL_TRIANGLES, 0, 3);
++        curTex = mFrameBuffers[fb].clrbuf;
++        curW = w;
++        curH = h;
++    };
++    if (fxaa) {
++        runPass(mGz64Programs[0], curW, curH, [&](GLuint program) {
++            glUniform2f(glGetUniformLocation(program, "uTexel"), 1.0f / (float)curW, 1.0f / (float)curH);
++        });
++    }
++    if (fsr) {
++        const uint32_t inW = curW, inH = curH;
++        runPass(mGz64Programs[1], outW, outH, [&](GLuint program) {
++            glUniform2f(glGetUniformLocation(program, "uInSize"), (float)inW, (float)inH);
++            glUniform2f(glGetUniformLocation(program, "uOutSize"), (float)outW, (float)outH);
++        });
++        runPass(mGz64Programs[2], outW, outH, [&](GLuint program) {
++            glUniform2f(glGetUniformLocation(program, "uInSize"), (float)outW, (float)outH);
++            // AMD's sharpness is in stops: 0 = strongest, 2 = mild.
++            glUniform1f(glGetUniformLocation(program, "uSharp"), exp2f(-sharpness));
++        });
++    }
++
++    glUseProgram((GLuint)prevProgram);
++    glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
++    if (blendWasEnabled) {
++        glEnable(GL_BLEND);
++    }
++    glBindTexture(GL_TEXTURE_2D, (GLuint)prevBoundTexture);
++    glActiveTexture((GLenum)prevActiveTexture);
++#if defined(__APPLE__) || defined(USE_OPENGLES)
++    glBindVertexArray((GLuint)prevVao);
++#endif
++    glBindFramebuffer(GL_FRAMEBUFFER, mFrameBuffers[mCurrentFrameBuffer].fbo);
++    if (mLastScissorEnabled != 1) {
++        mLastScissorEnabled = 1;
++        glEnable(GL_SCISSOR_TEST);
++    }
++    if (mLastActiveTexture >= 0 && mLastActiveTexture < SHADER_MAX_TEXTURES) {
++        mLastBoundTextures[mLastActiveTexture] = 0;
++    }
++    return (uintptr_t)curTex;
++}
++
+ // Prefer a .slang pass (translated via glslang+SPIRV-Cross); fall back to the
+ // backend's native .glsl single-file contract so mixed chains work.
+ static std::filesystem::path GdxResolvePipelineShaderPathOGL(const std::filesystem::path& presetDir,
+diff --git a/src/fast/interpreter.cpp b/src/fast/interpreter.cpp
+index cbb356f..a07e847 100644
+--- a/src/fast/interpreter.cpp
++++ b/src/fast/interpreter.cpp
+@@ -79,6 +79,12 @@ extern "C" void gdx_cki(const char* s, int v);
+ 
+ namespace Fast {
+ 
++// G-Zero 64 FXAA / FSR settings, latched once per frame in StartFrame (see Gz64ApplyFilters).
++static constexpr int kGz64FilterMode = 100;
++static bool sGz64Fxaa = false;
++static bool sGz64Fsr = false;
++static float sGz64FsrSharpness = 0.2f;
++
+ static UcodeHandlers ucode_handler_index = ucode_f3dex2;
+ 
+ const static uint32_t f3dex2AttrHandler[] = {
+@@ -7714,6 +7720,13 @@ void Interpreter::StartFrame() {
+         mPostPipeline.reset();
+         mPostPipelineFailedPath.clear();
+     }
++    // G-Zero 64: FXAA / FSR 1.0 run as their own post mode, only when no other post-process is on.
++    sGz64Fxaa = CVarGetInteger("gGZ64.Fxaa", 0) != 0;
++    sGz64Fsr = CVarGetInteger("gGZ64.Fsr", 0) != 0;
++    sGz64FsrSharpness = CVarGetFloat("gGZ64.FsrSharpness", 0.2f);
++    if (mPostShaderCache == 0 && (sGz64Fxaa || sGz64Fsr)) {
++        mPostShaderCache = kGz64FilterMode;
++    }
+     // HudMaxAspect: 0 or any out-of-range value means no clamp, so ANCHOR-scoped HUD elements
+     // glue to the true screen corners. A value in [4:3, 8) confines the HUD to a centred band of
+     // that aspect.
+@@ -7817,7 +7830,19 @@ void Interpreter::RunGuiOnly() {
+                 postOutH = mGfxCurrentWindowDimensions.height;
+             }
+             uintptr_t postTex = 0;
+-            if (mPostPipeline != nullptr) {
++            if (mPostShaderCache == kGz64FilterMode) {
++                // FSR upscales to the window, keeping the frame's aspect (4:3 stays pillarboxed).
++                uint32_t outW = postOutW, outH = postOutH;
++                if (sGz64Fsr && postOutH > 0) {
++                    outH = mGfxCurrentWindowDimensions.height;
++                    outW = (uint32_t)((uint64_t)postOutW * outH / postOutH);
++                    if (outW > mGfxCurrentWindowDimensions.width) {
++                        outW = mGfxCurrentWindowDimensions.width;
++                        outH = (uint32_t)((uint64_t)postOutH * outW / postOutW);
++                    }
++                }
++                postTex = mRapi->Gz64ApplyFilters(postSrcFb, outW, outH, sGz64Fxaa, sGz64Fsr, sGz64FsrSharpness);
++            } else if (mPostPipeline != nullptr) {
+                 postTex = mRapi->ApplyPostShaderChain(postSrcFb, *mPostPipeline, mNativeDimensions.width,
+                                                       mNativeDimensions.height, postOutW, postOutH);
+             } else {
+@@ -7966,7 +7991,19 @@ void Interpreter::Run(Gfx* commands, const std::unordered_map<Mtx*, MtxF>& mtx_r
+                 postOutH = mGfxCurrentWindowDimensions.height;
+             }
+             uintptr_t postTex = 0;
+-            if (mPostPipeline != nullptr) {
++            if (mPostShaderCache == kGz64FilterMode) {
++                // FSR upscales to the window, keeping the frame's aspect (4:3 stays pillarboxed).
++                uint32_t outW = postOutW, outH = postOutH;
++                if (sGz64Fsr && postOutH > 0) {
++                    outH = mGfxCurrentWindowDimensions.height;
++                    outW = (uint32_t)((uint64_t)postOutW * outH / postOutH);
++                    if (outW > mGfxCurrentWindowDimensions.width) {
++                        outW = mGfxCurrentWindowDimensions.width;
++                        outH = (uint32_t)((uint64_t)postOutH * outW / postOutW);
++                    }
++                }
++                postTex = mRapi->Gz64ApplyFilters(postSrcFb, outW, outH, sGz64Fxaa, sGz64Fsr, sGz64FsrSharpness);
++            } else if (mPostPipeline != nullptr) {
+                 postTex = mRapi->ApplyPostShaderChain(postSrcFb, *mPostPipeline, mNativeDimensions.width,
+                                                       mNativeDimensions.height, postOutW, postOutH);
+             } else {

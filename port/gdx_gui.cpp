@@ -9,6 +9,10 @@
 
 #include "gdx_imgui_nav.h"
 
+#ifdef __ANDROID__
+extern "C" void gdx_android_bridge_tick(void);
+#endif
+
 namespace {
 
 ImFont* sFontStandard = nullptr;
@@ -88,6 +92,9 @@ void GdxFast3dGui::ImGuiWMNewFrame() {
     // the caller runs next: the feed both reads the backend's HasGamepad claim and queues key events
     // for this frame. See port/gdx_imgui_nav.h.
     gdx_imgui_nav_tick();
+#ifdef __ANDROID__
+    gdx_android_bridge_tick(); // the quick menu's queued setting reads and writes
+#endif
 }
 
 float GdxUiScale() {

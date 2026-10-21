@@ -4,7 +4,6 @@ import android.os.Bundle;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
@@ -16,7 +15,6 @@ import org.libsdl.app.SDLActivity;
 /** SDL hosts the game, controller input and audio. */
 public final class GameActivity extends SDLActivity {
     private android.app.Dialog quickMenu;
-    private boolean selectHeld, startHeld;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,6 +29,7 @@ public final class GameActivity extends SDLActivity {
             Log.e("GZero64", "Cannot export the app folder", exception);
         }
         super.onCreate(savedInstanceState);
+        QuickMenuDialog.applyAutomaticFormat(this);
         restoreFullscreen();
     }
 
@@ -52,7 +51,6 @@ public final class GameActivity extends SDLActivity {
 
     private void showQuickMenu() {
         if (isFinishing() || isDestroyed() || (quickMenu != null && quickMenu.isShowing())) return;
-        selectHeld = startHeld = false;
         quickMenu = QuickMenuDialog.show(this);
         quickMenu.setOnDismissListener(new android.content.DialogInterface.OnDismissListener() {
             @Override public void onDismiss(android.content.DialogInterface dialog) {
@@ -62,10 +60,13 @@ public final class GameActivity extends SDLActivity {
         });
     }
 
-    /** G-Diffuser's own options menu toggles on F1 (libultraship Gui); send the key through SDL. */
-    void openPortMenu() {
-        onNativeKeyDown(KeyEvent.KEYCODE_F1);
-        onNativeKeyUp(KeyEvent.KEYCODE_F1);
+    /**
+     * The game and its sound stand still while the quick menu is open. SDL resumes on its own when
+     * the game window gets the focus back (onWindowFocusChanged).
+     */
+    void pauseGame() {
+        mNextNativeState = NativeState.PAUSED;
+        handleNativeState();
     }
 
     /** The quick menu's Exit: the system back behaviour this activity replaced. */
@@ -73,22 +74,6 @@ public final class GameActivity extends SDLActivity {
         super.onBackPressed();
         // SDL_main does not return on its own; end the separate :game process.
         android.os.Process.killProcess(android.os.Process.myPid());
-    }
-
-    @Override public boolean dispatchKeyEvent(KeyEvent event) {
-        // Controller: Select + Start together open the quick menu.
-        int code = event.getKeyCode();
-        if (code == KeyEvent.KEYCODE_BUTTON_SELECT || code == KeyEvent.KEYCODE_BUTTON_START) {
-            boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
-            if (code == KeyEvent.KEYCODE_BUTTON_SELECT) selectHeld = down;
-            else startHeld = down;
-            if (down && event.getRepeatCount() == 0 && selectHeld && startHeld) {
-                boolean handled = super.dispatchKeyEvent(event);
-                showQuickMenu();
-                return handled;
-            }
-        }
-        return super.dispatchKeyEvent(event);
     }
 
     // The activity owns the system bars; SDL owns the surface and events.
