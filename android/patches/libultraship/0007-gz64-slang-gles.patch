@@ -1,0 +1,80 @@
+diff --git a/src/fast/backends/gfx_opengl.cpp b/src/fast/backends/gfx_opengl.cpp
+index c772669..2033811 100644
+--- a/src/fast/backends/gfx_opengl.cpp
++++ b/src/fast/backends/gfx_opengl.cpp
+@@ -1298,8 +1298,12 @@ static const char* sGdxPostVsSource = GDX_POST_VS
+ 
+ // Translated .slang shaders emit GLSL 330 with in/out varyings, so the vertex
+ // shader must match that profile.
+-static const char* sGdxPostVsSource330 = R"(
+-#version 330
++#ifdef USE_OPENGLES
++#define GDX_POST_VS330_VERSION "#version 300 es\n" // G-Zero 64: the GLES translation targets ES 3.0
++#else
++#define GDX_POST_VS330_VERSION "#version 330\n"
++#endif
++static const char* sGdxPostVsSource330 = GDX_POST_VS330_VERSION R"(
+ out vec2 vUV;
+ void main() {
+     vec2 pos = vec2(gl_VertexID == 1 ? 3.0 : -1.0, gl_VertexID == 2 ? 3.0 : -1.0);
+diff --git a/src/fast/backends/gfx_slang_translator.cpp b/src/fast/backends/gfx_slang_translator.cpp
+index b0c5245..209b53f 100644
+--- a/src/fast/backends/gfx_slang_translator.cpp
++++ b/src/fast/backends/gfx_slang_translator.cpp
+@@ -1130,8 +1130,16 @@ std::string GdxCrossCompileGlsl(const std::vector<uint32_t>& spv, std::string* e
+     try {
+         spirv_cross::CompilerGLSL compiler(spv);
+         spirv_cross::CompilerGLSL::Options options;
++#ifdef USE_OPENGLES
++        // G-Zero 64: GLES 3.0 contexts take "#version 300 es"; full precision like desktop GL.
++        options.version = 300;
++        options.es = true;
++        options.fragment.default_float_precision = spirv_cross::CompilerGLSL::Options::Highp;
++        options.fragment.default_int_precision = spirv_cross::CompilerGLSL::Options::Highp;
++#else
+         options.version = 330;
+         options.es = false;
++#endif
+         options.enable_420pack_extension = false;
+         compiler.set_common_options(options);
+         return compiler.compile();
+diff --git a/src/fast/interpreter.cpp b/src/fast/interpreter.cpp
+index c149999..d8a6710 100644
+--- a/src/fast/interpreter.cpp
++++ b/src/fast/interpreter.cpp
+@@ -113,6 +113,13 @@ extern "C" uint32_t gz64_htc_generation(void);
+ extern "C" const uint8_t* gz64_htc_find(const Gz64HtcQuery* query, uint32_t* outWidth, uint32_t* outHeight);
+ static uint32_t sGz64HtcGeneration = 0;
+ 
++// G-Zero 64: the chain normally starts from the frame scaled down to N64 size, which CRT and TV
++// looks need. The presets under shaders/gz64/hd (sharpening, SMAA, colour) start from the full
++// rendered frame instead, so they keep the internal resolution.
++static uint32_t Gz64ChainWidth(const GdxPostShaderPipeline& pipeline, uint32_t native, uint32_t full) {
++    return pipeline.presetPath.generic_string().find("/gz64/hd/") != std::string::npos ? full : native;
++}
++
+ static void Gz64UploadDecoded(GfxRenderingAPI* rapi, const uint8_t* rgba32, uint32_t width, uint32_t height) {
+     uint32_t scaledWidth = width;
+     uint32_t scaledHeight = height;
+@@ -7932,8 +7939,8 @@ void Interpreter::RunGuiOnly() {
+                 }
+                 postTex = mRapi->Gz64ApplyFilters(postSrcFb, outW, outH, sGz64Fxaa, sGz64Fsr, sGz64FsrSharpness);
+             } else if (mPostPipeline != nullptr) {
+-                postTex = mRapi->ApplyPostShaderChain(postSrcFb, *mPostPipeline, mNativeDimensions.width,
+-                                                      mNativeDimensions.height, postOutW, postOutH);
++                postTex = mRapi->ApplyPostShaderChain(postSrcFb, *mPostPipeline, Gz64ChainWidth(*mPostPipeline, mNativeDimensions.width, postOutW),
++                                                      Gz64ChainWidth(*mPostPipeline, mNativeDimensions.height, postOutH), postOutW, postOutH);
+             } else {
+                 postTex = mRapi->ApplyPostShader(postSrcFb, mPostShaderCache, mNativeDimensions.width,
+                                                  mNativeDimensions.height, postOutW, postOutH);
+@@ -8093,8 +8100,8 @@ void Interpreter::Run(Gfx* commands, const std::unordered_map<Mtx*, MtxF>& mtx_r
+                 }
+                 postTex = mRapi->Gz64ApplyFilters(postSrcFb, outW, outH, sGz64Fxaa, sGz64Fsr, sGz64FsrSharpness);
+             } else if (mPostPipeline != nullptr) {
+-                postTex = mRapi->ApplyPostShaderChain(postSrcFb, *mPostPipeline, mNativeDimensions.width,
+-                                                      mNativeDimensions.height, postOutW, postOutH);
++                postTex = mRapi->ApplyPostShaderChain(postSrcFb, *mPostPipeline, Gz64ChainWidth(*mPostPipeline, mNativeDimensions.width, postOutW),
++                                                      Gz64ChainWidth(*mPostPipeline, mNativeDimensions.height, postOutH), postOutW, postOutH);
+             } else {
+                 postTex = mRapi->ApplyPostShader(postSrcFb, mPostShaderCache, mNativeDimensions.width,
+                                                  mNativeDimensions.height, postOutW, postOutH);

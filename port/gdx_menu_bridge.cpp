@@ -75,21 +75,52 @@ bool SkipOnAndroid(const GdxUI::WidgetInfo& widget) {
     return false;
 }
 
-// Settings -> Shaders draws its preset list as a custom ImGui block; the Android menu gets the
-// built-in modes as a plain combo (multi-pass .slangp presets are left to the desktop menu).
+// Settings -> Shaders draws its preset list as a custom ImGui block; the Android menu gets a plain
+// combo: the built-in modes, then the presets G-Zero 64 ships in shaders/gz64 (libretro slang
+// shaders chosen to run well on handhelds; hd/ ones work on the full frame, retro/ on N64 size).
 constexpr const char* kShaderId = "special/shader";
 constexpr const char* kShaderItems[] = { "Off", "Scanlines", "CRT (scanlines + grille)" };
+struct ShaderPreset {
+    const char* path; // PostPipeline value, relative to shaders/
+    const char* label;
+};
+constexpr ShaderPreset kShaderPresets[] = {
+    { "gz64/hd/sharpen-light.slangp", "HD - Light sharpening" },
+    { "gz64/hd/sharpen-adaptive.slangp", "HD - Adaptive sharpening" },
+    { "gz64/hd/smaa.slangp", "HD - SMAA anti-aliasing" },
+    { "gz64/hd/smaa-sharpen.slangp", "HD - SMAA + sharpening" },
+    { "gz64/hd/vivid-colors.slangp", "HD - Vivid colours" },
+    { "gz64/hd/film.slangp", "HD - Film (Technicolor)" },
+    { "gz64/retro/crt-fast.slangp", "Retro - Fast CRT" },
+    { "gz64/retro/crt-lottes.slangp", "Retro - CRT Lottes" },
+    { "gz64/retro/crt-sharp.slangp", "Retro - Sharp CRT" },
+    { "gz64/retro/crt-soft.slangp", "Retro - Soft CRT" },
+    { "gz64/retro/crt-curved.slangp", "Retro - Curved CRT" },
+    { "gz64/retro/crt-glow.slangp", "Retro - Glowing CRT" },
+    { "gz64/retro/composite-tv.slangp", "Retro - Composite TV" },
+    { "gz64/retro/vhs.slangp", "Retro - VHS" },
+};
+constexpr int kShaderBuiltins = sizeof(kShaderItems) / sizeof(kShaderItems[0]);
+constexpr int kShaderChoices = kShaderBuiltins + sizeof(kShaderPresets) / sizeof(kShaderPresets[0]);
 
 bool IsShaderPreset(const GdxUI::WidgetInfo& widget) {
     return widget.type == GdxUI::WIDGET_CUSTOM && widget.name == GdxTr("Shader preset");
 }
 
-// Index in kShaderItems, or 3 for a .slangp/.slang preset set from the desktop menu.
+// Index in kShaderItems + kShaderPresets, or kShaderChoices for any other preset (desktop menu).
 int ShaderSelection() {
     const char* pipeline = CVarGetString("gEnhancements.Graphics.PostPipeline", "");
     const char* custom = CVarGetString("gEnhancements.Graphics.CustomShader", "");
-    if ((pipeline != nullptr && pipeline[0] != '\0') || (custom != nullptr && custom[0] != '\0')) {
-        return 3;
+    if (pipeline != nullptr && pipeline[0] != '\0') {
+        for (int i = kShaderBuiltins; i < kShaderChoices; ++i) {
+            if (std::strcmp(pipeline, kShaderPresets[i - kShaderBuiltins].path) == 0) {
+                return i;
+            }
+        }
+        return kShaderChoices;
+    }
+    if (custom != nullptr && custom[0] != '\0') {
+        return kShaderChoices;
     }
     const int crt = CVarGetInteger("gEnhancements.Graphics.CRTShader", 0);
     return crt >= 1 && crt <= 2 ? crt : 0;
@@ -461,12 +492,18 @@ std::string GdxMenu::BridgeExportJson() {
                 AppendEscaped(row, GdxTr(item));
                 row += ',';
             }
-            if (value == 3) {
+            for (const ShaderPreset& preset : kShaderPresets) {
+                AppendEscaped(row, GdxTr(preset.label));
+                row += ',';
+            }
+            if (value == kShaderChoices) {
                 AppendEscaped(row, GdxTr("Custom preset"));
             } else {
                 row.pop_back();
             }
-            row += ']';
+            row += "],\"tip\":";
+            AppendEscaped(row, GdxTr("HD presets work on the full image; Retro ones on the console's own "
+                                     "resolution. While one is on, FSR and FXAA are off."));
         } else if (std::string(type) == "combo") {
             row += ",\"items\":[";
             for (size_t i = 0; i < widget.comboItems.size(); ++i) {
@@ -604,12 +641,14 @@ bool GdxMenu::BridgeSet(const std::string& id, double value) {
     }
     if (id == kShaderId) {
         const long selection = std::lround(value);
-        if (selection < 0 || selection > 2) {
+        if (selection < 0 || selection >= kShaderChoices) {
             return false; // "Custom preset" is only chosen from the desktop menu
         }
-        CVarSetInteger("gEnhancements.Graphics.CRTShader", static_cast<int32_t>(selection));
+        const bool builtin = selection < kShaderBuiltins;
+        CVarSetInteger("gEnhancements.Graphics.CRTShader", builtin ? static_cast<int32_t>(selection) : 0);
         CVarSetString("gEnhancements.Graphics.CustomShader", "");
-        CVarSetString("gEnhancements.Graphics.PostPipeline", "");
+        CVarSetString("gEnhancements.Graphics.PostPipeline",
+                      builtin ? "" : kShaderPresets[selection - kShaderBuiltins].path);
         GdxSaveCvars();
         return true;
     }

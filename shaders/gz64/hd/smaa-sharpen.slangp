@@ -1,0 +1,3 @@
+#reference "../../libretro/anti-aliasing/smaa+sharpen.slangp"
+SMAA_MAX_SEARCH_STEPS = "16.0"
+SMAA_MAX_SEARCH_STEPS_DIAG = "8.0"
