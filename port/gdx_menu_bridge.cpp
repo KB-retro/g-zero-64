@@ -10,6 +10,7 @@
 #include "gdx_menu_internal.h"
 #include "gdx_achievements.h"
 #include "gdx_workshop.h"
+#include "gz64_htc.h"
 
 #include <cmath>
 #include <cstdio>
@@ -231,6 +232,14 @@ void PackRows(AndroidPage& page) {
         row += ",\"value\":";
         row += pack.disabled ? "0" : "1";
         row += '}';
+        AddRow(page, row);
+    }
+    // The .htc pack (port/gz64_htc.cpp): its state and how many textures it has replaced so far.
+    const char* htc = Gz64HtcStatus();
+    if (htc[0] != '\0') {
+        std::string row = "{\"id\":\"\",\"type\":\"text\",\"label\":";
+        AppendEscaped(row, htc);
+        row += ",\"value\":0}";
         AddRow(page, row);
     }
     std::string reload = "{\"id\":";

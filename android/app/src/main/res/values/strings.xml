@@ -57,7 +57,7 @@
     <string name="quick_fsr_sharpness_tip">Nitidez que añade FSR tras escalar.</string>
     <string name="quick_antialiasing_tip">FXAA es ligero; MSAA es más limpio pero más exigente.</string>
     <string name="quick_install_mods">Instalar packs…</string>
-    <string name="quick_install_mods_tip">Packs .o2r (texturas, música, sonidos, modelos, scripts) o música .ogg, .flac y .wav.</string>
+    <string name="quick_install_mods_tip">Packs .o2r (texturas, música, sonidos, modelos, scripts), packs HD .htc o música .ogg, .flac y .wav.</string>
     <string name="quick_install_failed">No hay ningún explorador de archivos disponible.</string>
     <string name="quick_installed">Instalados: %d.</string>
     <string name="quick_install_skipped">No válidos: %d.</string>
@@ -69,6 +69,9 @@
         <item>3x</item>
         <item>4x</item>
     </string-array>
+    <string name="quick_hires_pack">Pack HD de emuladores (.htc)</string>
+    <string name="quick_hires_pack_tip">Usa un pack .htc de GLideN64 instalado con «Instalar packs…». La primera vez tarda en prepararse. Experimental.</string>
+    <string name="quick_installing">Copiando…</string>
     <string name="quick_cancel">Cancelar</string>
     <string-array name="quick_formats">
         <item>Automático</item>

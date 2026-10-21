@@ -68,8 +68,9 @@ final class QuickMenuDialog {
     private static final String FXAA = "gGZ64.Fxaa";
     private static final String MSAA = "gMSAAValue";
     private static final String XBRZ = "gGZ64.Xbrz";
+    private static final String HIRES_PACK = "gGZ64.HiresPack";
     private static final Object[][] SETTINGS = {
-        {FSR, false, 0f}, {FSR_SHARPNESS, true, 0.2f}, {FXAA, false, 0f}, {MSAA, false, 1f}, {XBRZ, false, 0f},
+        {FSR, false, 0f}, {FSR_SHARPNESS, true, 0.2f}, {FXAA, false, 0f}, {MSAA, false, 1f}, {XBRZ, false, 0f}, {HIRES_PACK, false, 0f},
     };
     private static final int[] XBRZ_FACTORS = {0, 2, 3, 4};
     static final int PICK_MODS = 6401;
@@ -514,6 +515,11 @@ final class QuickMenuDialog {
             }
         });
         rows.addView(install);
+        addChoice(R.string.quick_hires_pack, R.string.quick_hires_pack_tip, new Choice() {
+            @Override public String[] values() { return array(R.array.quick_off_on); }
+            @Override public int get() { return value(HIRES_PACK) != 0 ? 1 : 0; }
+            @Override public void set(int value) { setSetting(HIRES_PACK, false, value); }
+        });
     }
 
     /** GameActivity's result for PICK_MODS: copies the packs into mods/ and reloads them. */
@@ -525,6 +531,7 @@ final class QuickMenuDialog {
             uris.add(data.getData());
         }
         if (uris.isEmpty()) return;
+        if (current != null) current.footer.setText(R.string.quick_installing);
         worker.execute(new Runnable() {
             @Override public void run() {
                 int installed = 0, skipped = 0;
@@ -535,6 +542,8 @@ final class QuickMenuDialog {
                     File dir;
                     if (lower.endsWith(".o2r")) {
                         dir = new File(appDir, "mods");
+                    } else if (lower.endsWith(".htc")) {
+                        dir = new File(appDir, "hires");
                     } else if (lower.endsWith(".ogg") || lower.endsWith(".flac") || lower.endsWith(".wav")) {
                         dir = new File(appDir, "mods/music/custom");
                     } else {

@@ -1,0 +1,91 @@
+diff --git a/src/fast/interpreter.cpp b/src/fast/interpreter.cpp
+index 8713189..c149999 100644
+--- a/src/fast/interpreter.cpp
++++ b/src/fast/interpreter.cpp
+@@ -92,6 +92,27 @@ extern "C" const uint8_t* gz64_xbrz_scale(const uint8_t* rgba32, uint32_t width,
+                                           uint32_t* outWidth, uint32_t* outHeight);
+ static int sGz64XbrzFactor = 0;
+ 
++// G-Zero 64: hi-res packs in the emulators' .htc format (port/gz64_htc.cpp). Same layout as
++// Gz64HtcQuery in port/gz64_htc.h.
++struct Gz64HtcQuery {
++    const uint8_t* addr;
++    uint32_t fmt, siz;
++    uint32_t tlut;
++    uint32_t palette;
++    const uint8_t* palettes[2];
++    uint32_t sizeBytes;
++    uint32_t lineBytes;
++    uint32_t fullLineBytes;
++    uint32_t tileLineBytes;
++    uint32_t tileWidth, tileHeight;
++    uint32_t masks, maskt, cms, cmt;
++    uint32_t width, height;
++};
++extern "C" int gz64_htc_active(void);
++extern "C" uint32_t gz64_htc_generation(void);
++extern "C" const uint8_t* gz64_htc_find(const Gz64HtcQuery* query, uint32_t* outWidth, uint32_t* outHeight);
++static uint32_t sGz64HtcGeneration = 0;
++
+ static void Gz64UploadDecoded(GfxRenderingAPI* rapi, const uint8_t* rgba32, uint32_t width, uint32_t height) {
+     uint32_t scaledWidth = width;
+     uint32_t scaledHeight = height;
+@@ -2284,6 +2305,46 @@ void Interpreter::ImportTexture(int i, int tile, bool importReplacement) {
+         return;
+     }
+ 
++    // G-Zero 64: the .htc pack's hi-res image, when it has one for these bytes.
++    if (!importReplacement && gz64_htc_active() != 0 && (texFlags & (TEX_FLAG_LOAD_AS_IMG | TEX_FLAG_LOAD_AS_RAW)) == 0) {
++        const auto& tt = mRdp->texture_tile[tile];
++        const LoadedTexture& lt = mRdp->loaded_texture[tmemIdex];
++        const uint32_t lineBytes =
++            GetEffectiveLineSize(lt.line_size_bytes, lt.full_image_line_size_bytes, lt.size_bytes, tt.line_size_bytes);
++        const uint32_t decodedWidth = siz == G_IM_SIZ_4b    ? lineBytes * 2
++                                      : siz == G_IM_SIZ_8b  ? lineBytes
++                                      : siz == G_IM_SIZ_16b ? lineBytes / 2
++                                                            : lineBytes / 4;
++        Gz64HtcQuery query{};
++        query.addr = origAddr;
++        query.fmt = fmt;
++        query.siz = siz;
++        query.tlut = (mRdp->other_mode_h & (3u << G_MDSFT_TEXTLUT)) != 0 ? 1u : 0u;
++        query.palette = paletteIndex;
++        query.palettes[0] = mRdp->palettes[0];
++        query.palettes[1] = mRdp->palettes[1];
++        query.sizeBytes = lt.size_bytes;
++        query.lineBytes = lineBytes;
++        query.fullLineBytes = lt.full_image_line_size_bytes != 0 && lt.full_image_line_size_bytes != lt.size_bytes
++                                  ? lt.full_image_line_size_bytes
++                                  : lineBytes;
++        query.tileLineBytes = tt.line_size_bytes;
++        query.tileWidth = cacheTileWidth;
++        query.tileHeight = cacheTileHeight;
++        query.masks = tt.masks;
++        query.maskt = tt.maskt;
++        query.cms = tt.cms;
++        query.cmt = tt.cmt;
++        query.width = decodedWidth;
++        query.height = lineBytes > 0 ? lt.size_bytes / lineBytes : 0;
++        uint32_t hdWidth = 0, hdHeight = 0;
++        const uint8_t* hd = query.width != 0 && query.height != 0 ? gz64_htc_find(&query, &hdWidth, &hdHeight) : nullptr;
++        if (hd != nullptr) {
++            mRapi->UploadTexture(hd, hdWidth, hdHeight);
++            return;
++        }
++    }
++
+     // [bg-tex] Race background layer cache miss: skybox (64x1 RGBA16), venue floor/clouds
+     // (64x32 RGBA16/IA), and sprites (64x64 CI4). Bounded to avoid drowning the trace.
+     if (gGdxRaceActive != 0) {
+@@ -7749,8 +7810,10 @@ void Interpreter::StartFrame() {
+         mPostShaderCache = kGz64FilterMode;
+     }
+     const int xbrzFactor = std::clamp(CVarGetInteger("gGZ64.Xbrz", 0), 0, 4);
+-    if (xbrzFactor != sGz64XbrzFactor) {
++    const uint32_t htcGeneration = gz64_htc_generation();
++    if (xbrzFactor != sGz64XbrzFactor || htcGeneration != sGz64HtcGeneration) {
+         sGz64XbrzFactor = xbrzFactor;
++        sGz64HtcGeneration = htcGeneration;
+         TextureCacheClear();
+     }
+     // HudMaxAspect: 0 or any out-of-range value means no clamp, so ANCHOR-scoped HUD elements
