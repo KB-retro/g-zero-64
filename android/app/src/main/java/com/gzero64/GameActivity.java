@@ -33,8 +33,6 @@ public final class GameActivity extends SDLActivity {
             Os.setenv("GDX_EXTRACT_BIN", getApplicationInfo().nativeLibraryDir + "/libgdx_extract.so", true);
             // gdiffuser-run.log, saved from Settings when something goes wrong.
             Os.setenv("GDX_LOG", "1", true);
-            // GLES samples the CPU-drawn boot logo bottom-up, unlike desktop GL.
-            Os.setenv("GDX_VI_SCANOUT_FLIP", "1", true);
         } catch (ErrnoException exception) {
             Log.e("GZero64", "Cannot export the app folder", exception);
         }
