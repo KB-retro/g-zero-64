@@ -7,15 +7,21 @@ import android.graphics.Canvas;
 import android.graphics.LightingColorFilter;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import java.util.HashMap;
+import java.util.Map;
 
-/** Cached artwork in the same order as TouchLayout.IDS. */
+/** Cached artwork for every TouchLayout button id. */
 final class TouchControlArtwork {
+    private static final String[] IDS = {
+        "start", "accelerate", "brake", "boost", "stick", "drift-left", "drift-right", "camera", "steer-left", "steer-right"
+    };
     private static final int[] RESOURCES = {
         R.drawable.touch_pause, R.drawable.touch_gas, R.drawable.touch_brake, R.drawable.touch_boost,
-        R.drawable.touch_stick_base, R.drawable.touch_drift_left, R.drawable.touch_drift_right, R.drawable.touch_camera
+        R.drawable.touch_stick_base, R.drawable.touch_drift_left, R.drawable.touch_drift_right, R.drawable.touch_camera,
+        R.drawable.touch_left, R.drawable.touch_right
     };
 
-    private final Bitmap[] images = new Bitmap[RESOURCES.length];
+    private final Map<String, Bitmap> images = new HashMap<>();
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final RectF destination = new RectF();
     private final LightingColorFilter pressed = new LightingColorFilter(0xFFFFFFFF, 0x00202020);
@@ -24,8 +30,8 @@ final class TouchControlArtwork {
     TouchControlArtwork(Resources resources) {
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inScaled = false;
-        for (int i = 0; i < images.length; i++) {
-            images[i] = BitmapFactory.decodeResource(resources, RESOURCES[i], options);
+        for (int i = 0; i < IDS.length; i++) {
+            images.put(IDS[i], BitmapFactory.decodeResource(resources, RESOURCES[i], options));
         }
         knob = BitmapFactory.decodeResource(resources, R.drawable.touch_stick_knob, options);
     }
@@ -38,8 +44,9 @@ final class TouchControlArtwork {
         canvas.drawBitmap(knob, null, destination, paint);
     }
 
-    void draw(Canvas canvas, int index, RectF bounds, boolean down, int alpha) {
-        Bitmap image = images[index];
+    void draw(Canvas canvas, String id, RectF bounds, boolean down, int alpha) {
+        Bitmap image = images.get(id);
+        if (image == null) return;
         float scale = Math.min(bounds.width() / image.getWidth(),
                 bounds.height() / image.getHeight());
         float halfWidth = image.getWidth() * scale / 2;

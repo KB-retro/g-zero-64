@@ -117,7 +117,20 @@ final class QuickMenuDialog {
 
     private QuickMenuDialog(GameActivity activity) {
         this.activity = activity;
-        dialog = new Dialog(activity);
+        dialog = new Dialog(activity) {
+            // A touch puts Android in touch mode, where the next D-pad press only leaves it. Leave
+            // it right away, on what was touched, so the controller answers at once afterwards.
+            @Override public boolean dispatchTouchEvent(android.view.MotionEvent event) {
+                boolean handled = super.dispatchTouchEvent(event);
+                if (event.getActionMasked() == android.view.MotionEvent.ACTION_UP) {
+                    final float x = event.getRawX(), y = event.getRawY();
+                    ui.post(new Runnable() {
+                        @Override public void run() { leaveTouchMode(x, y); }
+                    });
+                }
+                return handled;
+            }
+        };
         nav = new LinearLayout(activity);
         rows = new LinearLayout(activity);
         rowScroll = new ScrollView(activity);
@@ -339,10 +352,10 @@ final class QuickMenuDialog {
                     focusRows();
                     return true;
                 }
-                // Left on a button among the options (no value to change) also goes back to the list.
+                // Left / right on a button among the options does not wander off to the page list.
                 View focused = dialog.getCurrentFocus();
-                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && focused instanceof Button && focused.getParent() == rows) {
-                    focusNav();
+                if ((keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)
+                        && focused instanceof Button && focused.getParent() == rows) {
                     return true;
                 }
                 return false;
@@ -404,17 +417,39 @@ final class QuickMenuDialog {
                 if (hasFocus && !busy && page != currentPage) showPage(page, -1);
             }
         });
-        // Right (or A) from the page list goes into the page; left stays in the list.
+        // Only the shoulder buttons move between the page list and the options (dialog key listener).
         item.setOnKeyListener(new View.OnKeyListener() {
             @Override public boolean onKey(View view, int keyCode, KeyEvent event) {
-                if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                    if (event.getAction() == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) focusRows();
-                    return true;
-                }
-                return false;
+                return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_DPAD_LEFT;
             }
         });
         nav.addView(item);
+    }
+
+    private void leaveTouchMode(float rawX, float rawY) {
+        if (!dialog.isShowing()) return;
+        View target = touchedFocusable(rows, rawX, rawY);
+        if (target == null) target = touchedFocusable(nav, rawX, rawY);
+        if (target != null) {
+            target.requestFocusFromTouch();
+        } else {
+            View focused = dialog.getCurrentFocus();
+            if (focused != null) focused.requestFocusFromTouch();
+            else focusNav();
+        }
+    }
+
+    private static View touchedFocusable(LinearLayout parent, float rawX, float rawY) {
+        int[] at = new int[2];
+        for (int i = 0; i < parent.getChildCount(); i++) {
+            View child = parent.getChildAt(i);
+            if (!child.isFocusable() || child.getVisibility() != View.VISIBLE) continue;
+            child.getLocationOnScreen(at);
+            if (rawX >= at[0] && rawX < at[0] + child.getWidth() && rawY >= at[1] && rawY < at[1] + child.getHeight()) {
+                return child;
+            }
+        }
+        return null;
     }
 
     /** The page list, on the current page. */
@@ -632,7 +667,10 @@ final class QuickMenuDialog {
         addChoice(R.string.quick_racing_pad, R.string.quick_racing_pad_tip, new Choice() {
             @Override public String[] values() { return array(R.array.quick_racing_pad_modes); }
             @Override public int get() { return value(RACING_PAD) != 0 ? 1 : 0; }
-            @Override public void set(int value) { setSetting(RACING_PAD, false, value); }
+            @Override public void set(int value) {
+                setSetting(RACING_PAD, false, value);
+                if (activity.touchControls() != null) activity.touchControls().setRacingLayout(value == 1);
+            }
         });
         final TouchControlsView controls = activity.touchControls();
         if (controls == null) return;

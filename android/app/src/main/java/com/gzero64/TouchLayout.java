@@ -14,14 +14,23 @@ import org.w3c.dom.NodeList;
 /** Normalized button centers; NaN means the original, aspect-aware position. */
 final class TouchLayout {
     static final float MIN_SIZE = 0.5f, MAX_SIZE = 2.0f;
-    static final String[] IDS = {
+    /** The two schemes: the N64 pad (stick and buttons) and the racing one (side arrows, auto gas). */
+    static final String[] STANDARD = {
         "start", "accelerate", "brake", "boost", "stick", "drift-left", "drift-right", "camera"
     };
-    private final float[] sizes = new float[IDS.length];
-    private final float[] x = new float[IDS.length];
-    private final float[] y = new float[IDS.length];
+    static final String[] RACING = {
+        "start", "boost", "brake", "steer-left", "steer-right", "drift-left", "drift-right", "camera"
+    };
+    final String[] IDS;
+    private final float[] sizes;
+    private final float[] x;
+    private final float[] y;
 
-    TouchLayout() {
+    TouchLayout(String[] ids) {
+        IDS = ids;
+        sizes = new float[ids.length];
+        x = new float[ids.length];
+        y = new float[ids.length];
         for (int i = 0; i < IDS.length; i++) {
             x[i] = y[i] = Float.NaN;
             sizes[i] = 1;
@@ -29,7 +38,7 @@ final class TouchLayout {
     }
 
     TouchLayout copy() {
-        TouchLayout result = new TouchLayout();
+        TouchLayout result = new TouchLayout(IDS);
         System.arraycopy(sizes, 0, result.sizes, 0, sizes.length);
         System.arraycopy(x, 0, result.x, 0, x.length);
         System.arraycopy(y, 0, result.y, 0, y.length);
@@ -56,7 +65,7 @@ final class TouchLayout {
         y[index] = centerY;
     }
 
-    static TouchLayout read(InputStream input) throws IOException {
+    static TouchLayout read(InputStream input, String[] IDS) throws IOException {
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             // Reject DTDs before parsing: Android's DOM factory does not support
@@ -79,7 +88,7 @@ final class TouchLayout {
                     || !"1".equals(root.getAttribute("version"))) {
                 throw new IOException("Unsupported touch layout");
             }
-            TouchLayout layout = new TouchLayout();
+            TouchLayout layout = new TouchLayout(IDS);
             boolean[] seen = new boolean[IDS.length];
             NodeList buttons = root.getElementsByTagName("button");
             if (buttons.getLength() < 1 || buttons.getLength() > IDS.length) throw new IOException("Missing buttons");

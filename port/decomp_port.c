@@ -1675,3 +1675,13 @@ int gz64_dof_active(void) {
     const s32 mode = GET_MODE(gGameMode);
     return gTitleDemoState != TITLE_DEMO_INACTIVE || mode == GAMEMODE_GP_END_CS || mode == GAMEMODE_EAD_DEMO;
 }
+
+/* G-Zero 64: a race is being played -- not paused, not a demo, not past the finish line. The
+ * Android touch controls switch to their racing scheme then (GameBridge.nativeInRace). */
+int gz64_in_race(void) {
+    extern int gdx_input_in_gameplay(void);
+    extern s8 gGamePaused;
+    extern s8 gTitleDemoState;
+    return gdx_input_in_gameplay() && gGamePaused == 0 && gTitleDemoState == TITLE_DEMO_INACTIVE &&
+           (gRacers[0].stateFlags & RACER_STATE_FINISHED) == 0;
+}

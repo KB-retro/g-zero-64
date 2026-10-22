@@ -17,7 +17,6 @@ import org.libsdl.app.SDLActivity;
 public final class GameActivity extends SDLActivity {
     private android.app.Dialog quickMenu;
     private TouchControlsView touchControls;
-    private TouchLayoutStore touchLayoutStore;
     private View editorToolbar;
     private TouchPresetController touchPresets;
     private android.widget.TextView fpsOverlay;
@@ -39,9 +38,7 @@ public final class GameActivity extends SDLActivity {
         super.onCreate(savedInstanceState);
         QuickMenuDialog.applyAutomaticFormat(this);
         if (mLayout != null) {
-            touchLayoutStore = new TouchLayoutStore(appDir);
-            touchControls = new TouchControlsView(this);
-            touchControls.setLayout(touchLayoutStore.load());
+            touchControls = new TouchControlsView(this, appDir);
             mLayout.addView(touchControls, new android.view.ViewGroup.LayoutParams(
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT));
             setFpsOverlayVisible(getSharedPreferences("game", MODE_PRIVATE).getBoolean("fps", false));
@@ -230,7 +227,7 @@ public final class GameActivity extends SDLActivity {
         addEditorButton(actions, getString(R.string.action_save), new View.OnClickListener() {
             @Override public void onClick(View view) {
                 try {
-                    touchLayoutStore.save(touchControls.getLayout());
+                    touchControls.saveLayout();
                     closeTouchEditor(true);
                 } catch (java.io.IOException exception) {
                     Log.e("TouchLayout", "Cannot save layout", exception);
@@ -265,7 +262,8 @@ public final class GameActivity extends SDLActivity {
         final android.widget.SeekBar sizeSlider = new android.widget.SeekBar(this);
         sizeSlider.setMax(Math.round((TouchLayout.MAX_SIZE - TouchLayout.MIN_SIZE) * 100));
         toolbar.addView(sizeSlider);
-        final String[] names = getResources().getStringArray(R.array.touch_button_names);
+        final String[] names = getResources().getStringArray(
+                touchControls.editingRacing() ? R.array.touch_racing_button_names : R.array.touch_button_names);
         final Runnable updateSize = new Runnable() {
             @Override public void run() {
                 int selected = touchControls.getSelectedButton();

@@ -37,6 +37,9 @@ final class GameBridge {
     /** First-time setup progress, 0..1. */
     static native float nativeSetupProgress();
 
+    /** A race is running (not paused, not a demo, not finished): the racing touch scheme applies. */
+    static native boolean nativeInRace();
+
     static void setInt(String name, int value) {
         nativeSet(name, false, value);
     }

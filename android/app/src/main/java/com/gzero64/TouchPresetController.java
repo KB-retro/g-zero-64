@@ -28,7 +28,10 @@ final class TouchPresetController {
             Runnable layoutChanged) {
         this.activity = activity;
         this.controls = controls;
-        this.store = new TouchPresetStore(directory);
+        // Each scheme keeps its own presets.
+        this.store = controls.editingRacing()
+                ? new TouchPresetStore(directory, "touch-presets-racing", TouchLayout.RACING)
+                : new TouchPresetStore(directory, "touch-presets", TouchLayout.STANDARD);
         this.layoutChanged = layoutChanged;
     }
 
@@ -161,7 +164,7 @@ final class TouchPresetController {
                 TouchLayout imported;
                 try (InputStream input = activity.getContentResolver().openInputStream(uri)) {
                     if (input == null) throw new IOException("Cannot open document");
-                    imported = TouchLayout.read(input);
+                    imported = TouchLayout.read(input, controls.getLayout().IDS);
                 }
                 apply(imported);
                 askName(imported); // Cancel keeps the preview; Save adds it to the library.

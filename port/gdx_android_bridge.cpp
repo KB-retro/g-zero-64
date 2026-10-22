@@ -372,3 +372,9 @@ extern "C" int gdx_android_racing_pad(uint16_t* buttons, int8_t* stickX, int8_t*
     *stickY = static_cast<int8_t>(y);
     return 1;
 }
+
+extern "C" int gz64_in_race(void);
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_gzero64_GameBridge_nativeInRace(JNIEnv*, jclass) {
+    return gz64_in_race() != 0 ? JNI_TRUE : JNI_FALSE;
+}

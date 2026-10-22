@@ -12,9 +12,11 @@ final class TouchPresetStore {
     /** Messages of validateName's IllegalArgumentException; the UI localises them. */
     static final String NAME_LENGTH = "name-length", NAME_CHARACTERS = "name-characters";
     private final File directory;
+    private final String[] ids;
 
-    TouchPresetStore(File gameDirectory) {
-        directory = new File(gameDirectory, "touch-presets");
+    TouchPresetStore(File gameDirectory, String folder, String[] ids) {
+        directory = new File(gameDirectory, folder);
+        this.ids = ids;
     }
 
     static String validateName(String value) {
@@ -34,7 +36,7 @@ final class TouchPresetStore {
     }
 
     private TouchLayoutStore file(String name) {
-        return new TouchLayoutStore(directory, validateName(name) + ".xml");
+        return new TouchLayoutStore(directory, validateName(name) + ".xml", ids);
     }
 
     List<String> list() throws IOException {

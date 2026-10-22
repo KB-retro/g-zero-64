@@ -9,32 +9,35 @@ import android.util.SparseIntArray;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
+import java.io.File;
+import java.io.IOException;
 
 /**
- * On-screen N64 controller for port 1 (adapted from NFSU-X's race controls). Buttons press N64
- * buttons; the analog stick steers (a finger that lands on it keeps it until lifted, wherever it
- * slides). Empty screen space belongs to SDL. Shown according to the quick menu's mode: automatic
- * (hidden while a controller is connected), always or never.
+ * On-screen N64 controller for port 1 (adapted from NFSU-X's race controls), in two schemes:
+ * - Standard: analog stick (a finger that lands on it keeps it until lifted, wherever it slides)
+ *   and the N64 buttons. Used in menus and whenever the racing scheme is off.
+ * - Racing (controller layout "Racing", during a race): steering arrows at each side, a drift
+ *   button above each arrow, boost and air brake; the machine accelerates by itself.
+ * Each scheme has its own layout file and presets. Empty screen space belongs to SDL. Shown
+ * according to the quick menu's mode: automatic (hidden while a controller is connected), always
+ * or never.
  */
 final class TouchControlsView extends View implements InputManager.InputDeviceListener {
     static final int MODE_AUTO = 0, MODE_ALWAYS = 1, MODE_NEVER = 2;
-
-    // N64 buttons in TouchLayout.IDS order; 0 for the stick.
-    private static final int[] N64_BUTTONS = {
-        0x1000 /* Start */, 0x8000 /* A */, 0x0004 /* C-Down: air brake */, 0x4000 /* B: boost */,
-        0, 0x2000 /* Z */, 0x0010 /* R */, 0x0001 /* C-Right: camera */
-    };
-    private static final int STICK = 4;
+    private static final int STANDARD = 0, RACING = 1;
     private static final int STICK_RANGE = 80; // full N64 deflection
-    private int stickPointer = -1;
-    private float stickX, stickY; // -1..1, y up
+    private static final int BUTTON_A = 0x8000;
 
-    private final RectF[] bounds = new RectF[TouchLayout.IDS.length];
-    private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final TouchControlArtwork artwork;
+    private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final SparseIntArray pointers = new SparseIntArray();
     private final InputManager inputManager;
-    private TouchLayout layout = new TouchLayout();
+    private final TouchLayoutStore[] stores = new TouchLayoutStore[2];
+    private final TouchLayout[] layouts = new TouchLayout[2];
+    private final RectF[][] boundsSets = new RectF[2][];
+    private int scheme = STANDARD;      // what is drawn and pressed now
+    private boolean racingSetting = true; // controller layout "Racing" (quick menu)
+    private boolean inRace;
     private TouchLayout originalLayout;
     private boolean editing;
     private boolean snapToGrid;
@@ -42,23 +45,42 @@ final class TouchControlsView extends View implements InputManager.InputDeviceLi
     private boolean controllerConnected;
     private int held;
     private float scale;
+    private int stickPointer = -1;
+    private float stickX, stickY; // -1..1, y up
     private int dragPointer = -1;
     private int dragButton = -1;
     private int selectedButton = -1;
     private float dragOffsetX, dragOffsetY;
     private Runnable selectionChanged;
 
-    TouchControlsView(Context context) {
+    TouchControlsView(Context context, File directory) {
         super(context);
         artwork = new TouchControlArtwork(context.getResources());
         inputManager = (InputManager) context.getSystemService(Context.INPUT_SERVICE);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-        for (int i = 0; i < bounds.length; i++) bounds[i] = new RectF();
-        mode = context.getSharedPreferences("touch", Context.MODE_PRIVATE).getInt("mode", MODE_AUTO);
+        stores[STANDARD] = new TouchLayoutStore(directory, "touch-controls.xml", TouchLayout.STANDARD);
+        stores[RACING] = new TouchLayoutStore(directory, "touch-controls-racing.xml", TouchLayout.RACING);
+        for (int s = 0; s < 2; s++) {
+            layouts[s] = stores[s].load();
+            boundsSets[s] = new RectF[layouts[s].IDS.length];
+            for (int i = 0; i < boundsSets[s].length; i++) boundsSets[s][i] = new RectF();
+        }
+        android.content.SharedPreferences prefs = context.getSharedPreferences("touch", Context.MODE_PRIVATE);
+        mode = prefs.getInt("mode", MODE_AUTO);
+        racingSetting = prefs.getBoolean("racing", true);
         controllerConnected = findController();
     }
 
-    // ── Visibility ──────────────────────────────────────────────────────────────────────────────
+    private TouchLayout layout() { return layouts[scheme]; }
+    private RectF[] bounds() { return boundsSets[scheme]; }
+    private String id(int index) { return layout().IDS[index]; }
+    private int indexOf(String id) {
+        String[] ids = layout().IDS;
+        for (int i = 0; i < ids.length; i++) if (ids[i].equals(id)) return i;
+        return -1;
+    }
+
+    // ── Visibility and scheme ───────────────────────────────────────────────────────────────────
 
     int getMode() { return mode; }
 
@@ -68,9 +90,46 @@ final class TouchControlsView extends View implements InputManager.InputDeviceLi
         cancelInput();
     }
 
+    /** The quick menu's controller layout: the racing scheme is used in races when it is on. */
+    void setRacingLayout(boolean racing) {
+        racingSetting = racing;
+        getContext().getSharedPreferences("touch", Context.MODE_PRIVATE).edit().putBoolean("racing", racing).apply();
+        updateScheme();
+    }
+
+    boolean editingRacing() { return scheme == RACING; }
+
     private boolean shown() {
         return editing || mode == MODE_ALWAYS || (mode == MODE_AUTO && !controllerConnected);
     }
+
+    private void updateScheme() {
+        int wanted = editing ? scheme : (racingSetting && inRace ? RACING : STANDARD);
+        if (wanted != scheme) {
+            scheme = wanted;
+            cancelInput();
+            invalidate();
+        } else {
+            send(); // the racing scheme's automatic gas follows visibility too
+        }
+    }
+
+    // Whether a race is running, from the game (polled: no callback from the game thread).
+    private final Runnable poll = new Runnable() {
+        @Override public void run() {
+            boolean racing;
+            try {
+                racing = GameBridge.nativeInRace();
+            } catch (UnsatisfiedLinkError error) {
+                racing = false;
+            }
+            if (racing != inRace) {
+                inRace = racing;
+                updateScheme();
+            }
+            postDelayed(this, 250);
+        }
+    };
 
     private boolean findController() {
         for (int id : InputDevice.getDeviceIds()) {
@@ -101,10 +160,12 @@ final class TouchControlsView extends View implements InputManager.InputDeviceLi
         super.onAttachedToWindow();
         if (inputManager != null) inputManager.registerInputDeviceListener(this, null);
         refreshController();
+        post(poll);
     }
 
     @Override protected void onDetachedFromWindow() {
         if (inputManager != null) inputManager.unregisterInputDeviceListener(this);
+        removeCallbacks(poll);
         cancelInput();
         super.onDetachedFromWindow();
     }
@@ -119,30 +180,36 @@ final class TouchControlsView extends View implements InputManager.InputDeviceLi
 
     void setSelectionChanged(Runnable listener) { selectionChanged = listener; }
     int getSelectedButton() { return selectedButton; }
-    float getSelectedSize() { return selectedButton < 0 ? 1 : layout.getSize(selectedButton); }
+    String getSelectedId() { return selectedButton < 0 ? null : id(selectedButton); }
+    float getSelectedSize() { return selectedButton < 0 ? 1 : layout().getSize(selectedButton); }
 
     void resizeSelected(float size) {
         if (!editing || selectedButton < 0) return;
-        RectF r = bounds[selectedButton];
-        layout.setPosition(selectedButton, r.centerX() / getWidth(), r.centerY() / getHeight());
-        layout.setSize(selectedButton, size);
+        RectF r = bounds()[selectedButton];
+        layout().setPosition(selectedButton, r.centerX() / getWidth(), r.centerY() / getHeight());
+        layout().setSize(selectedButton, size);
         arrangeButtons(getWidth(), getHeight());
         invalidate();
     }
 
     void setLayout(TouchLayout value) {
-        layout = value.copy();
+        layouts[scheme] = value.copy();
         arrangeButtons(getWidth(), getHeight());
         invalidate();
     }
 
-    TouchLayout getLayout() { return layout.copy(); }
+    TouchLayout getLayout() { return layout().copy(); }
 
+    void saveLayout() throws IOException { stores[scheme].save(layout()); }
+
+    /** Edits the scheme the controller layout setting picks: racing when it is on. */
     void beginEditing() {
         cancelInput();
+        scheme = racingSetting ? RACING : STANDARD;
         selectedButton = -1;
-        originalLayout = layout.copy();
+        originalLayout = layout().copy();
         editing = true;
+        arrangeButtons(getWidth(), getHeight());
         invalidate();
     }
 
@@ -153,30 +220,29 @@ final class TouchControlsView extends View implements InputManager.InputDeviceLi
         if (!save) setLayout(originalLayout);
         originalLayout = null;
         cancelInput();
+        updateScheme();
     }
 
     void resetLayout() {
-        setLayout(new TouchLayout());
+        setLayout(new TouchLayout(layout().IDS));
         if (selectionChanged != null) selectionChanged.run();
     }
 
     private void moveEditedButton(int index, float x, float y) {
         if (getWidth() <= 0 || getHeight() <= 0) return;
-        RectF r = bounds[index];
+        RectF r = bounds()[index];
         if (snapToGrid) {
             float step = TouchGrid.STEP * scale;
             x = TouchGrid.snap(x, r.width() / 2, getWidth() - r.width() / 2, step);
             y = TouchGrid.snap(y, r.height() / 2, getHeight() - r.height() / 2, step);
         }
         moveButton(index, x, y);
-        layout.setPosition(index, r.centerX() / getWidth(), r.centerY() / getHeight());
+        layout().setPosition(index, r.centerX() / getWidth(), r.centerY() / getHeight());
     }
 
     private void snapAllButtons() {
-        for (int i = 0; i < bounds.length; i++) {
-            RectF r = bounds[i];
-            moveEditedButton(i, r.centerX(), r.centerY());
-        }
+        RectF[] bounds = bounds();
+        for (int i = 0; i < bounds.length; i++) moveEditedButton(i, bounds[i].centerX(), bounds[i].centerY());
     }
 
     // ── Layout ──────────────────────────────────────────────────────────────────────────────────
@@ -190,13 +256,19 @@ final class TouchControlsView extends View implements InputManager.InputDeviceLi
         invalidate();
     }
 
-    private void panel(int index, float x, float y, float width, float height) {
-        bounds[index].set(x, y, x + width, y + height);
+    private void panel(String id, float x, float y, float width, float height) {
+        int index = indexOf(id);
+        if (index >= 0) bounds()[index].set(x, y, x + width, y + height);
     }
 
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         cancelInput();
-        arrangeButtons(w, h);
+        int current = scheme;
+        for (int s = 0; s < 2; s++) {
+            scheme = s;
+            arrangeButtons(w, h);
+        }
+        scheme = current;
     }
 
     private void arrangeButtons(int w, int h) {
@@ -206,33 +278,46 @@ final class TouchControlsView extends View implements InputManager.InputDeviceLi
         float s = scale;
         float edge = 18 * s;
         float bottom = h - edge;
-        // Left: the stick, Z above it. Right: accelerate, brake, boost, R above.
-        panel(STICK, edge, bottom - 230 * s, 230 * s, 230 * s);
-        panel(5, edge, bottom - 380 * s, 96 * s, 96 * s);
-        panel(1, w - edge - 120 * s, bottom - 120 * s, 120 * s, 120 * s);
-        panel(2, w - edge - 230 * s, bottom - 96 * s, 96 * s, 96 * s);
-        panel(3, w - edge - 110 * s, bottom - 235 * s, 100 * s, 100 * s);
-        panel(6, w - edge - 96 * s, bottom - 380 * s, 96 * s, 96 * s);
-        panel(0, w / 2f - 32 * s, edge, 64 * s, 64 * s);
-        panel(7, w - edge - 64 * s, edge, 64 * s, 64 * s);
+        if (scheme == STANDARD) {
+            // Left: the stick, Z above it. Right: accelerate, brake, boost, R above.
+            panel("stick", edge, bottom - 230 * s, 230 * s, 230 * s);
+            panel("drift-left", edge, bottom - 380 * s, 96 * s, 96 * s);
+            panel("accelerate", w - edge - 120 * s, bottom - 120 * s, 120 * s, 120 * s);
+            panel("brake", w - edge - 230 * s, bottom - 96 * s, 96 * s, 96 * s);
+            panel("boost", w - edge - 110 * s, bottom - 235 * s, 100 * s, 100 * s);
+            panel("drift-right", w - edge - 96 * s, bottom - 380 * s, 96 * s, 96 * s);
+        } else {
+            // Each side: its steering arrow, its drift above it. Boost under the right thumb,
+            // air brake under the left one.
+            panel("steer-left", edge, bottom - 160 * s, 150 * s, 160 * s);
+            panel("steer-right", w - edge - 150 * s, bottom - 160 * s, 150 * s, 160 * s);
+            panel("drift-left", edge + 25 * s, bottom - 290 * s, 100 * s, 100 * s);
+            panel("drift-right", w - edge - 125 * s, bottom - 290 * s, 100 * s, 100 * s);
+            panel("boost", w - edge - 275 * s, bottom - 115 * s, 105 * s, 105 * s);
+            panel("brake", edge + 170 * s, bottom - 100 * s, 90 * s, 90 * s);
+        }
+        panel("start", w / 2f - 32 * s, edge, 64 * s, 64 * s);
+        panel("camera", w - edge - 64 * s, edge, 64 * s, 64 * s);
+        RectF[] bounds = bounds();
         for (int i = 0; i < bounds.length; i++) {
             RectF r = bounds[i];
-            float size = layout.getSize(i);
+            float size = layout().getSize(i);
             float width = Math.min(w, r.width() * size);
             float height = Math.min(h, r.height() * size);
-            panel(i, r.centerX() - width / 2, r.centerY() - height / 2, width, height);
+            bounds[i].set(r.centerX() - width / 2, r.centerY() - height / 2,
+                    r.centerX() + width / 2, r.centerY() + height / 2);
             moveButton(i, r.centerX(), r.centerY());
-            if (layout.hasPosition(i)) moveButton(i, layout.getX(i) * w, layout.getY(i) * h);
+            if (layout().hasPosition(i)) moveButton(i, layout().getX(i) * w, layout().getY(i) * h);
         }
         if (editing && snapToGrid) snapAllButtons();
     }
 
     private void moveButton(int index, float centerX, float centerY) {
-        RectF r = bounds[index];
+        RectF r = bounds()[index];
         float width = r.width(), height = r.height();
         float x = Math.max(0, Math.min(getWidth() - width, centerX - width / 2));
         float y = Math.max(0, Math.min(getHeight() - height, centerY - height / 2));
-        panel(index, x, y, width, height);
+        r.set(x, y, x + width, y + height);
     }
 
     @Override protected void onDraw(Canvas canvas) {
@@ -241,14 +326,18 @@ final class TouchControlsView extends View implements InputManager.InputDeviceLi
             canvas.drawColor(0xBB000000);
             if (snapToGrid) drawGrid(canvas);
         }
+        RectF[] bounds = bounds();
         for (int i = 0; i < bounds.length; i++) {
             boolean down = (held & (1 << i)) != 0 || (editing && selectedButton == i);
-            artwork.draw(canvas, i, bounds[i], down, editing ? 255 : 170);
+            artwork.draw(canvas, id(i), bounds[i], down, editing ? 255 : 170);
         }
-        RectF base = bounds[STICK];
-        float travel = base.width() * 0.3f;
-        artwork.drawKnob(canvas, base.centerX() + stickX * travel, base.centerY() - stickY * travel,
-                base.width() * 0.42f, editing || stickPointer >= 0 ? 255 : 190);
+        int stick = indexOf("stick");
+        if (stick >= 0) {
+            RectF base = bounds[stick];
+            float travel = base.width() * 0.3f;
+            artwork.drawKnob(canvas, base.centerX() + stickX * travel, base.centerY() - stickY * travel,
+                    base.width() * 0.42f, editing || stickPointer >= 0 ? 255 : 190);
+        }
     }
 
     private void drawGrid(Canvas canvas) {
@@ -264,20 +353,41 @@ final class TouchControlsView extends View implements InputManager.InputDeviceLi
     // ── Input ───────────────────────────────────────────────────────────────────────────────────
 
     private int hit(float x, float y) {
+        RectF[] bounds = bounds();
         for (int i = 0; i < bounds.length; i++) {
             if (bounds[i].contains(x, y)) return i;
         }
         return -1;
     }
 
+    private static int n64Button(String id) {
+        switch (id) {
+            case "start": return 0x1000;
+            case "accelerate": return BUTTON_A;
+            case "brake": return 0x0004;       // C-Down: air brake
+            case "boost": return 0x4000;       // B
+            case "drift-left": return 0x2000;  // Z
+            case "drift-right": return 0x0010; // R
+            case "camera": return 0x0001;      // C-Right
+            default: return 0;                 // stick and steering arrows move the stick
+        }
+    }
+
     /** The held buttons as N64 buttons and stick, to the game (port/gdx_android_bridge.cpp). */
     private void send() {
         int buttons = 0;
-        for (int i = 0; i < N64_BUTTONS.length; i++) {
-            if ((held & (1 << i)) != 0) buttons |= N64_BUTTONS[i];
+        float x = stickX, y = stickY;
+        for (int i = 0; i < layout().IDS.length; i++) {
+            if ((held & (1 << i)) == 0) continue;
+            buttons |= n64Button(id(i));
+            if (id(i).equals("steer-left")) x -= 1;
+            if (id(i).equals("steer-right")) x += 1;
         }
+        // The racing scheme accelerates by itself while it is on screen.
+        if (scheme == RACING && !editing && shown()) buttons |= BUTTON_A;
         try {
-            GameBridge.nativeSetTouch(buttons, Math.round(stickX * STICK_RANGE), Math.round(stickY * STICK_RANGE));
+            GameBridge.nativeSetTouch(buttons, Math.round(Math.max(-1, Math.min(1, x)) * STICK_RANGE),
+                    Math.round(y * STICK_RANGE));
         } catch (UnsatisfiedLinkError ignored) {
             // Game library not loaded yet.
         }
@@ -292,8 +402,8 @@ final class TouchControlsView extends View implements InputManager.InputDeviceLi
             if (selectionChanged != null) selectionChanged.run();
             invalidate();
             if (dragButton >= 0) {
-                dragOffsetX = event.getX() - bounds[dragButton].centerX();
-                dragOffsetY = event.getY() - bounds[dragButton].centerY();
+                dragOffsetX = event.getX() - bounds()[dragButton].centerX();
+                dragOffsetY = event.getY() - bounds()[dragButton].centerY();
             }
         } else if (action == MotionEvent.ACTION_MOVE && dragButton >= 0) {
             int pointer = event.findPointerIndex(dragPointer);
@@ -319,18 +429,19 @@ final class TouchControlsView extends View implements InputManager.InputDeviceLi
             cancelInput();
             return true;
         }
+        int stick = indexOf("stick");
         for (int i = 0; i < event.getPointerCount(); i++) {
             int id = event.getPointerId(i);
             boolean lifted = (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) && i == index;
             boolean landed = (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) && i == index;
-            if (landed && stickPointer < 0 && hit(event.getX(i), event.getY(i)) == STICK) stickPointer = id;
+            if (landed && stick >= 0 && stickPointer < 0 && hit(event.getX(i), event.getY(i)) == stick) stickPointer = id;
             if (id == stickPointer) {
                 if (lifted) {
                     stickPointer = -1;
                     stickX = stickY = 0;
                 } else {
                     // Distance from the base's centre, full at 30% of its width; y grows upwards.
-                    RectF base = bounds[STICK];
+                    RectF base = bounds()[stick];
                     float travel = base.width() * 0.3f;
                     float dx = (event.getX(i) - base.centerX()) / travel;
                     float dy = (base.centerY() - event.getY(i)) / travel;
@@ -354,7 +465,7 @@ final class TouchControlsView extends View implements InputManager.InputDeviceLi
         held = 0;
         for (int i = 0; i < pointers.size(); i++) {
             int button = pointers.valueAt(i);
-            if (button >= 0 && button != STICK) held |= 1 << button;
+            if (button >= 0 && button != stick) held |= 1 << button;
         }
         send();
         invalidate();
