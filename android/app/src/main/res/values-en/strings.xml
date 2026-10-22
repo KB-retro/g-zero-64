@@ -175,6 +175,12 @@
     <string name="quick_effect_speed_tip">Blur at the sides with your machine\'s speed, more when boosting. Single-player races only.</string>
     <string name="quick_effect_cas">CAS sharpening</string>
     <string name="quick_effect_cas_tip">AMD sharpening without halos. With FSR on, FSR\'s sharpening is used.</string>
+    <string name="quick_effect_ao">Ambient occlusion (SSAO)</string>
+    <string name="quick_effect_ao_tip">Soft shadows in corners, joints and under the machines: more volume. Uses the scene depth.</string>
+    <string name="quick_effect_rays">Light rays</string>
+    <string name="quick_effect_rays_tip">Shafts of light coming down from the bright sky.</string>
+    <string name="quick_effect_dof">Depth of field</string>
+    <string name="quick_effect_dof_tip">Blurs what is far from the centre. Only in the title screen demo and the Grand Prix ending, never while playing.</string>
     <string name="quick_cancel">Cancel</string>
     <string-array name="quick_formats">
         <item>Automatic</item>

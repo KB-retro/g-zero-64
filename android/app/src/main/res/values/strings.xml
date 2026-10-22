@@ -178,6 +178,12 @@
     <string name="quick_effect_speed_tip">Desenfoque en los lados según la velocidad de tu nave, más con el turbo. Solo en carreras de un jugador.</string>
     <string name="quick_effect_cas">Nitidez CAS</string>
     <string name="quick_effect_cas_tip">Nitidez de AMD sin halos. Con FSR activo se usa la nitidez de FSR.</string>
+    <string name="quick_effect_ao">Sombras de ambiente (SSAO)</string>
+    <string name="quick_effect_ao_tip">Sombras suaves en rincones, juntas y bajo las naves: más volumen. Usa la profundidad de la escena.</string>
+    <string name="quick_effect_rays">Rayos de luz</string>
+    <string name="quick_effect_rays_tip">Haces de luz que bajan desde el cielo brillante.</string>
+    <string name="quick_effect_dof">Profundidad de campo</string>
+    <string name="quick_effect_dof_tip">Desenfoca lo que está lejos del centro. Solo en la demo de la pantalla de título y en el final del Grand Prix, nunca mientras juegas.</string>
     <string name="quick_cancel">Cancelar</string>
     <string-array name="quick_formats">
         <item>Automático</item>

@@ -72,22 +72,24 @@ final class QuickMenuDialog {
     private static final String HIRES_PACK = "gGZ64.HiresPack";
     // Picture effects (Effects page), applied by the renderer's G-Zero 64 pass.
     private static final String[] EFFECTS = {
-        "gGZ64.Bloom", "gGZ64.Hdr", "gGZ64.Vibrance", "gGZ64.Style", "gGZ64.Vignette", "gGZ64.SpeedBlur", "gGZ64.Cas"
+        "gGZ64.Bloom", "gGZ64.Hdr", "gGZ64.Vibrance", "gGZ64.Style", "gGZ64.Vignette", "gGZ64.SpeedBlur", "gGZ64.Cas",
+        "gGZ64.Ao", "gGZ64.Rays", "gGZ64.Dof"
     };
     private static final int EFFECT_STYLE = 3;
     private static final float[] LEVELS = {0f, 0.35f, 0.65f, 1f};
     // Profiles in EFFECTS order: light, modern, neon, cinema (style indexes R.array.quick_effect_styles).
     private static final float[][] PROFILES = {
-        {0f, 0f, 0f, 0f, 0f, 0f, 0f},
-        {0.35f, 0.35f, 0.35f, 0f, 0f, 0f, 0.35f},
-        {0.65f, 0.65f, 0.35f, 0f, 0.35f, 0.35f, 0.65f},
-        {1f, 0.65f, 0.65f, 4f, 0.35f, 0.65f, 0.35f},
-        {0.35f, 0.65f, 0f, 1f, 0.65f, 0f, 0.35f},
+        {0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f},
+        {0.35f, 0.35f, 0.35f, 0f, 0f, 0f, 0.35f, 0f, 0f, 0f},
+        {0.65f, 0.65f, 0.35f, 0f, 0.35f, 0.35f, 0.65f, 0.35f, 0.35f, 0.65f},
+        {1f, 0.65f, 0.65f, 4f, 0.35f, 0.65f, 0.35f, 0.35f, 0.65f, 0.65f},
+        {0.35f, 0.65f, 0f, 1f, 0.65f, 0f, 0.35f, 0.65f, 0.35f, 1f},
     };
     private static final Object[][] SETTINGS = {
         {FSR, false, 0f}, {FSR_SHARPNESS, true, 0.2f}, {FXAA, false, 0f}, {MSAA, false, 1f}, {XBRZ, false, 0f}, {HIRES_PACK, false, 0f},
         {"gGZ64.Bloom", true, 0f}, {"gGZ64.Hdr", true, 0f}, {"gGZ64.Vibrance", true, 0f}, {"gGZ64.Style", false, 0f},
         {"gGZ64.Vignette", true, 0f}, {"gGZ64.SpeedBlur", true, 0f}, {"gGZ64.Cas", true, 0f},
+        {"gGZ64.Ao", true, 0f}, {"gGZ64.Rays", true, 0f}, {"gGZ64.Dof", true, 0f},
     };
     private static final int[] XBRZ_FACTORS = {0, 2, 3, 4};
     static final int PICK_MODS = 6401;
@@ -551,9 +553,11 @@ final class QuickMenuDialog {
             }
         });
         int[] labels = {R.string.quick_effect_bloom, R.string.quick_effect_hdr, R.string.quick_effect_vibrance, 0,
-                        R.string.quick_effect_vignette, R.string.quick_effect_speed, R.string.quick_effect_cas};
+                        R.string.quick_effect_vignette, R.string.quick_effect_speed, R.string.quick_effect_cas,
+                        R.string.quick_effect_ao, R.string.quick_effect_rays, R.string.quick_effect_dof};
         int[] tips = {R.string.quick_effect_bloom_tip, R.string.quick_effect_hdr_tip, R.string.quick_effect_vibrance_tip, 0,
-                      R.string.quick_effect_vignette_tip, R.string.quick_effect_speed_tip, R.string.quick_effect_cas_tip};
+                      R.string.quick_effect_vignette_tip, R.string.quick_effect_speed_tip, R.string.quick_effect_cas_tip,
+                      R.string.quick_effect_ao_tip, R.string.quick_effect_rays_tip, R.string.quick_effect_dof_tip};
         for (int i = 0; i < EFFECTS.length; i++) {
             final String name = EFFECTS[i];
             if (i == EFFECT_STYLE) {
