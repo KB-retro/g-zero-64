@@ -374,6 +374,12 @@ final class QuickMenuDialog {
                     focusRows();
                     return true;
                 }
+                // Up / down stay on their side: the next or previous item of the same list, never a
+                // jump across (Android's own search could land on the page list and switch pages).
+                if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    moveWithin(keyCode == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1);
+                    return true;
+                }
                 // Left / right on a button among the options does not wander off to the page list.
                 View focused = dialog.getCurrentFocus();
                 if ((keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)
@@ -446,6 +452,37 @@ final class QuickMenuDialog {
             }
         });
         nav.addView(item);
+    }
+
+    /** Moves the focus to the next (+1) or previous (-1) item of the list it is in. */
+    private void moveWithin(int direction) {
+        View focused = dialog.getCurrentFocus();
+        LinearLayout list = null;
+        View item = focused;
+        while (item != null && item.getParent() instanceof View) {
+            if (item.getParent() == rows) { list = rows; break; }
+            if (item.getParent() == nav) { list = nav; break; }
+            item = (View) item.getParent();
+        }
+        if (list == null) {
+            focusNav();
+            return;
+        }
+        int at = list.indexOfChild(item);
+        for (int i = at + direction; i >= 0 && i < list.getChildCount(); i += direction) {
+            View next = list.getChildAt(i);
+            if (next.isFocusable() && next.getVisibility() == View.VISIBLE) {
+                next.requestFocus();
+                if (list == rows) {
+                    // Keep it on screen, with a little of the neighbours.
+                    int top = next.getTop() - dp(24), bottom = next.getBottom() + dp(24);
+                    if (top < rowScroll.getScrollY()) rowScroll.smoothScrollTo(0, Math.max(0, top));
+                    else if (bottom > rowScroll.getScrollY() + rowScroll.getHeight())
+                        rowScroll.smoothScrollTo(0, bottom - rowScroll.getHeight());
+                }
+                return;
+            }
+        }
     }
 
     /** The page list, on the current page. */
