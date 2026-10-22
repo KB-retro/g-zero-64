@@ -70,6 +70,7 @@ final class QuickMenuDialog {
     private static final String MSAA = "gMSAAValue";
     private static final String XBRZ = "gGZ64.Xbrz";
     private static final String HIRES_PACK = "gGZ64.HiresPack";
+    private static final String RACING_PAD = "gGZ64.RacingPad";
     // Picture effects (Effects page), applied by the renderer's G-Zero 64 pass.
     private static final String[] EFFECTS = {
         "gGZ64.Bloom", "gGZ64.Hdr", "gGZ64.Vibrance", "gGZ64.Style", "gGZ64.Vignette", "gGZ64.SpeedBlur", "gGZ64.Cas",
@@ -86,7 +87,7 @@ final class QuickMenuDialog {
         {0.35f, 0.65f, 0f, 1f, 0.65f, 0f, 0.35f, 0.65f, 0.35f, 1f},
     };
     private static final Object[][] SETTINGS = {
-        {FSR, false, 0f}, {FSR_SHARPNESS, true, 0.2f}, {FXAA, false, 0f}, {MSAA, false, 1f}, {XBRZ, false, 0f}, {HIRES_PACK, false, 0f},
+        {FSR, false, 0f}, {FSR_SHARPNESS, true, 0.2f}, {FXAA, false, 0f}, {MSAA, false, 1f}, {XBRZ, false, 0f}, {HIRES_PACK, false, 0f}, {RACING_PAD, false, 1f},
         {"gGZ64.Bloom", true, 0f}, {"gGZ64.Hdr", true, 0f}, {"gGZ64.Vibrance", true, 0f}, {"gGZ64.Style", false, 0f},
         {"gGZ64.Vignette", true, 0f}, {"gGZ64.SpeedBlur", true, 0f}, {"gGZ64.Cas", true, 0f},
         {"gGZ64.Ao", true, 0f}, {"gGZ64.Rays", true, 0f}, {"gGZ64.Dof", true, 0f},
@@ -329,11 +330,19 @@ final class QuickMenuDialog {
         dialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
             @Override public boolean onKey(DialogInterface d, int keyCode, KeyEvent event) {
                 if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
-                if (keyCode == KeyEvent.KEYCODE_BUTTON_L1 || keyCode == KeyEvent.KEYCODE_BUTTON_R1) {
-                    if (!busy && !pages.isEmpty()) {
-                        int next = currentPage + (keyCode == KeyEvent.KEYCODE_BUTTON_R1 ? 1 : -1);
-                        showPage((next + pages.size()) % pages.size(), 0);
-                    }
+                // L1 / L2: to the page list (left). R1 / R2: to the options of the page (right).
+                if (keyCode == KeyEvent.KEYCODE_BUTTON_L1 || keyCode == KeyEvent.KEYCODE_BUTTON_L2) {
+                    focusNav();
+                    return true;
+                }
+                if (keyCode == KeyEvent.KEYCODE_BUTTON_R1 || keyCode == KeyEvent.KEYCODE_BUTTON_R2) {
+                    focusRows();
+                    return true;
+                }
+                // Left on a button among the options (no value to change) also goes back to the list.
+                View focused = dialog.getCurrentFocus();
+                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && focused instanceof Button && focused.getParent() == rows) {
+                    focusNav();
                     return true;
                 }
                 return false;
@@ -395,7 +404,40 @@ final class QuickMenuDialog {
                 if (hasFocus && !busy && page != currentPage) showPage(page, -1);
             }
         });
+        // Right (or A) from the page list goes into the page; left stays in the list.
+        item.setOnKeyListener(new View.OnKeyListener() {
+            @Override public boolean onKey(View view, int keyCode, KeyEvent event) {
+                if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                    if (event.getAction() == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) focusRows();
+                    return true;
+                }
+                return false;
+            }
+        });
         nav.addView(item);
+    }
+
+    /** The page list, on the current page. */
+    private void focusNav() {
+        for (int i = 0; i < nav.getChildCount(); i++) {
+            View child = nav.getChildAt(i);
+            if (child.getTag() instanceof Integer && (Integer) child.getTag() == currentPage) {
+                child.requestFocus();
+                return;
+            }
+        }
+    }
+
+    /** The page's options, on the first one. */
+    private void focusRows() {
+        for (int i = 0; i < rows.getChildCount(); i++) {
+            View child = rows.getChildAt(i);
+            if (child.isFocusable()) {
+                child.requestFocus();
+                rowScroll.smoothScrollTo(0, Math.max(0, child.getTop() - dp(8)));
+                return;
+            }
+        }
     }
 
     private StateListDrawable highlight() {
@@ -587,6 +629,11 @@ final class QuickMenuDialog {
     // ── Touch controls ──────────────────────────────────────────────────────────────────────────
 
     private void addTouchRows() {
+        addChoice(R.string.quick_racing_pad, R.string.quick_racing_pad_tip, new Choice() {
+            @Override public String[] values() { return array(R.array.quick_racing_pad_modes); }
+            @Override public int get() { return value(RACING_PAD) != 0 ? 1 : 0; }
+            @Override public void set(int value) { setSetting(RACING_PAD, false, value); }
+        });
         final TouchControlsView controls = activity.touchControls();
         if (controls == null) return;
         addChoice(R.string.quick_touch_mode, R.string.quick_touch_mode_tip, new Choice() {

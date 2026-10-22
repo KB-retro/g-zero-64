@@ -539,7 +539,7 @@ std::string GdxMenu::BridgeExportJson() {
             }
             // The input viewer overlay gives way to the touch controls, all Java (QuickMenuDialog).
             if (sectionName == "Settings" && pageName == "Input Viewer") {
-                Page(Section(layout, sectionName), "Touch controls", "touch");
+                Page(Section(layout, sectionName), "Controller and touch", "touch");
                 continue;
             }
             const bool achievements = sectionName == "Enhancements" && pageName == "Achievements";

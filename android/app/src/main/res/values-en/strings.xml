@@ -46,7 +46,7 @@
     <string name="quick_exit">Exit</string>
     <string name="quick_exit_confirm">Exit the game? Anything not saved will be lost.</string>
     <string name="quick_page_gzero">Picture</string>
-    <string name="quick_pages_hint">L1 / R1: change page · ← →: change value</string>
+    <string name="quick_pages_hint">L1 / L2: page list · R1 / R2: options · ← →: change value</string>
     <string name="quick_loading">Loading…</string>
     <string name="quick_format_tip">Automatic uses 16:9 on wide screens and 4:3 on squarer ones.</string>
     <string name="quick_resolution_tip">Resolution the game is drawn at, relative to the screen. Higher is sharper and heavier.</string>
@@ -117,10 +117,7 @@
         <item>Accelerate (A)</item>
         <item>Air brake (C-Down)</item>
         <item>Boost (B)</item>
-        <item>Left</item>
-        <item>Right</item>
-        <item>Up</item>
-        <item>Down</item>
+        <item>Stick</item>
         <item>Drift left (Z)</item>
         <item>Drift right (R)</item>
         <item>Camera (C-Right)</item>
@@ -181,6 +178,12 @@
     <string name="quick_effect_rays_tip">Shafts of light coming down from the bright sky.</string>
     <string name="quick_effect_dof">Depth of field</string>
     <string name="quick_effect_dof_tip">Blurs what is far from the centre. Only in the title screen demo and the Grand Prix ending, never while playing.</string>
+    <string name="quick_racing_pad">Controller layout</string>
+    <string name="quick_racing_pad_tip">Racing: stick or D-pad to steer, R2 or A accelerate, L2 or X air brake, B boost, L1/R1 drift (Z/R), right stick cameras. Original: G-Diffuser\'s N64 mapping.</string>
+    <string-array name="quick_racing_pad_modes">
+        <item>Original (N64)</item>
+        <item>Racing</item>
+    </string-array>
     <string name="quick_cancel">Cancel</string>
     <string-array name="quick_formats">
         <item>Automatic</item>

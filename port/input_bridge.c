@@ -806,6 +806,21 @@ void gdx_controller_poll(void) {
     // controller the game will accept.
     connected[0] = 1;
 
+#ifdef __ANDROID__
+    // G-Zero 64 racing layout for the first controller (port/gdx_android_bridge.cpp): replaces
+    // libultraship's N64 mapping for port 1, before the action layer like any raw pad.
+    {
+        extern int gdx_android_racing_pad(u16 * buttons, s8 * stickX, s8 * stickY);
+        u16 racingButtons = 0;
+        s8 racingX = 0, racingY = 0;
+        if (gdx_android_racing_pad(&racingButtons, &racingX, &racingY)) {
+            buttons[0] = racingButtons;
+            stick_x[0] = racingX;
+            stick_y[0] = racingY;
+        }
+    }
+#endif
+
     // 3A action layer: remap the raw LUS pad bits per context. It runs before mouse steering, the
     // dev overrides and the Course Edit mouse buttons below, so those stay raw N64 bits. Every port
     // is applied (a disconnected port reads zero), so each port's edge state stays in step.

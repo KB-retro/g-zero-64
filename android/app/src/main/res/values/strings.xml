@@ -49,7 +49,7 @@
     <string name="quick_exit">Salir</string>
     <string name="quick_exit_confirm">¿Salir del juego? Lo que no hayas guardado se perderá.</string>
     <string name="quick_page_gzero">Imagen</string>
-    <string name="quick_pages_hint">L1 / R1: cambiar de página · ← →: cambiar valor</string>
+    <string name="quick_pages_hint">L1 / L2: lista de páginas · R1 / R2: opciones · ← →: cambiar valor</string>
     <string name="quick_loading">Cargando…</string>
     <string name="quick_format_tip">Automático usa 16:9 en pantallas panorámicas y 4:3 en las más cuadradas.</string>
     <string name="quick_resolution_tip">Resolución a la que se dibuja el juego respecto a la pantalla. Más alta, más nítida y más exigente.</string>
@@ -120,10 +120,7 @@
         <item>Acelerar (A)</item>
         <item>Freno de aire (C-abajo)</item>
         <item>Turbo (B)</item>
-        <item>Izquierda</item>
-        <item>Derecha</item>
-        <item>Arriba</item>
-        <item>Abajo</item>
+        <item>Stick</item>
         <item>Derrape izquierdo (Z)</item>
         <item>Derrape derecho (R)</item>
         <item>Cámara (C-derecha)</item>
@@ -184,6 +181,12 @@
     <string name="quick_effect_rays_tip">Haces de luz que bajan desde el cielo brillante.</string>
     <string name="quick_effect_dof">Profundidad de campo</string>
     <string name="quick_effect_dof_tip">Desenfoca lo que está lejos del centro. Solo en la demo de la pantalla de título y en el final del Grand Prix, nunca mientras juegas.</string>
+    <string name="quick_racing_pad">Esquema del mando</string>
+    <string name="quick_racing_pad_tip">Carreras: stick o cruceta para girar, R2 o A acelerar, L2 o X freno de aire, B turbo, L1/R1 derrapes (Z/R), stick derecho cámaras. Original: el mando N64 de G-Diffuser.</string>
+    <string-array name="quick_racing_pad_modes">
+        <item>Original (N64)</item>
+        <item>Carreras</item>
+    </string-array>
     <string name="quick_cancel">Cancelar</string>
     <string-array name="quick_formats">
         <item>Automático</item>

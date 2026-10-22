@@ -15,8 +15,7 @@ import org.w3c.dom.NodeList;
 final class TouchLayout {
     static final float MIN_SIZE = 0.5f, MAX_SIZE = 2.0f;
     static final String[] IDS = {
-        "start", "accelerate", "brake", "boost", "left", "right", "up", "down",
-        "drift-left", "drift-right", "camera"
+        "start", "accelerate", "brake", "boost", "stick", "drift-left", "drift-right", "camera"
     };
     private final float[] sizes = new float[IDS.length];
     private final float[] x = new float[IDS.length];

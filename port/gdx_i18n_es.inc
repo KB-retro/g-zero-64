@@ -378,7 +378,7 @@
     { "Off", "Desactivado" },
     { "Effects", "Efectos" },
     { "Scanlines + grille", "Líneas + rejilla" },
-    { "Touch controls", "Controles táctiles" },
+    { "Controller and touch", "Mando y táctil" },
     { "HD - Light sharpening", "HD · Nitidez ligera" },
     { "HD - Adaptive sharpening", "HD · Nitidez adaptativa" },
     { "HD - SMAA anti-aliasing", "HD · Suavizado SMAA" },

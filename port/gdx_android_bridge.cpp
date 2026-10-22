@@ -6,8 +6,11 @@
 // briefly for that tick; a write is applied, with any live side effect, on the next one.
 #ifdef __ANDROID__
 #include <jni.h>
+#include <SDL2/SDL.h>
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <atomic>
 #include <condition_variable>
 #include <functional>
@@ -310,4 +313,62 @@ extern "C" JNIEXPORT jint JNICALL Java_com_gzero64_GameBridge_nativeSetupState(J
 
 extern "C" JNIEXPORT jfloat JNICALL Java_com_gzero64_GameBridge_nativeSetupProgress(JNIEnv*, jclass) {
     return gz64_setup_progress();
+}
+
+// ── Racing controller layout ────────────────────────────────────────────────────────────────────
+// gGZ64.RacingPad (default on): the first controller drives port 1 like a racing game instead of
+// through libultraship's N64 mapping. Stick or D-pad steer, RT / A accelerate, LT / X air brake,
+// B boost, LB / RB drift (Z / R), right stick the C buttons (camera, rear view...), Start pause.
+// Game thread, from input_bridge.c, where libultraship reads the same controllers.
+extern "C" int gdx_android_racing_pad(uint16_t* buttons, int8_t* stickX, int8_t* stickY) {
+    if (CVarGetInteger("gGZ64.RacingPad", 1) == 0) {
+        return 0;
+    }
+    static SDL_GameController* pad = nullptr;
+    if (pad != nullptr && !SDL_GameControllerGetAttached(pad)) {
+        SDL_GameControllerClose(pad);
+        pad = nullptr;
+    }
+    if (pad == nullptr) {
+        for (int i = 0; i < SDL_NumJoysticks() && pad == nullptr; i++) {
+            if (SDL_IsGameController(i)) {
+                pad = SDL_GameControllerOpen(i);
+            }
+        }
+        if (pad == nullptr) {
+            return 0;
+        }
+    }
+    auto button = [](SDL_GameControllerButton b) { return SDL_GameControllerGetButton(pad, b) != 0; };
+    auto axis = [](SDL_GameControllerAxis a) { return SDL_GameControllerGetAxis(pad, a) / 32767.0f; };
+    // Stick to the N64 range with a dead zone; SDL's y grows downwards, the N64's upwards.
+    auto toN64 = [](float v) {
+        const float deadZone = 0.15f;
+        const float magnitude = (std::fabs(v) - deadZone) / (1.0f - deadZone);
+        return magnitude <= 0.0f ? 0 : static_cast<int>((v < 0 ? -1.0f : 1.0f) * std::min(1.0f, magnitude) * 80.0f);
+    };
+    int x = toN64(axis(SDL_CONTROLLER_AXIS_LEFTX));
+    int y = -toN64(axis(SDL_CONTROLLER_AXIS_LEFTY));
+    if (x == 0 && y == 0) { // the D-pad steers when the stick rests
+        x = (button(SDL_CONTROLLER_BUTTON_DPAD_RIGHT) ? 80 : 0) - (button(SDL_CONTROLLER_BUTTON_DPAD_LEFT) ? 80 : 0);
+        y = (button(SDL_CONTROLLER_BUTTON_DPAD_UP) ? 80 : 0) - (button(SDL_CONTROLLER_BUTTON_DPAD_DOWN) ? 80 : 0);
+    }
+    uint16_t n64 = 0;
+    if (button(SDL_CONTROLLER_BUTTON_A) || axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 0.3f) n64 |= 0x8000; // A
+    if (button(SDL_CONTROLLER_BUTTON_B)) n64 |= 0x4000;                                                // B
+    if (button(SDL_CONTROLLER_BUTTON_LEFTSHOULDER)) n64 |= 0x2000;                                     // Z
+    if (button(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)) n64 |= 0x0010;                                    // R
+    if (button(SDL_CONTROLLER_BUTTON_START)) n64 |= 0x1000;                                            // Start
+    if (button(SDL_CONTROLLER_BUTTON_LEFTSTICK)) n64 |= 0x0020;                                        // L
+    if (button(SDL_CONTROLLER_BUTTON_X) || axis(SDL_CONTROLLER_AXIS_TRIGGERLEFT) > 0.3f) n64 |= 0x0004; // C-Down
+    if (button(SDL_CONTROLLER_BUTTON_Y)) n64 |= 0x0008;                                                // C-Up
+    const float cx = axis(SDL_CONTROLLER_AXIS_RIGHTX), cy = axis(SDL_CONTROLLER_AXIS_RIGHTY);
+    if (cx > 0.5f) n64 |= 0x0001; // C-Right: camera
+    if (cx < -0.5f) n64 |= 0x0002; // C-Left
+    if (cy < -0.5f) n64 |= 0x0008; // C-Up: rear view
+    if (cy > 0.5f) n64 |= 0x0004;  // C-Down
+    *buttons = n64;
+    *stickX = static_cast<int8_t>(x);
+    *stickY = static_cast<int8_t>(y);
+    return 1;
 }
