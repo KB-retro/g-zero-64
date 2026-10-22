@@ -172,9 +172,9 @@
     <string name="quick_effect_vignette">Vignette</string>
     <string name="quick_effect_vignette_tip">Darkens the edges of the screen.</string>
     <string name="quick_effect_speed">Speed blur</string>
-    <string name="quick_effect_speed_tip">Blur at the sides with your machine's speed, more when boosting. Single-player races only.</string>
+    <string name="quick_effect_speed_tip">Blur at the sides with your machine\'s speed, more when boosting. Single-player races only.</string>
     <string name="quick_effect_cas">CAS sharpening</string>
-    <string name="quick_effect_cas_tip">AMD sharpening without halos. With FSR on, FSR's sharpening is used.</string>
+    <string name="quick_effect_cas_tip">AMD sharpening without halos. With FSR on, FSR\'s sharpening is used.</string>
     <string name="quick_cancel">Cancel</string>
     <string-array name="quick_formats">
         <item>Automatic</item>
