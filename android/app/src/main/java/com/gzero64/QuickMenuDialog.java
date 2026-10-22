@@ -101,6 +101,8 @@ final class QuickMenuDialog {
 
     private final GameActivity activity;
     private final Dialog dialog;
+    private final View parking;          // holds the focus after a touch (see the constructor)
+    private View lastFocused;            // where the controller was before
     private final Handler ui = new Handler(Looper.getMainLooper());
     // One thread for the app's lifetime: the menu opens and closes many times.
     private static final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -118,19 +120,22 @@ final class QuickMenuDialog {
     private QuickMenuDialog(GameActivity activity) {
         this.activity = activity;
         dialog = new Dialog(activity) {
-            // A touch puts Android in touch mode, where the next D-pad press only leaves it. Leave
-            // it right away, on what was touched, so the controller answers at once afterwards.
+            // A touch puts Android in touch mode and clears the focus; the next D-pad press would
+            // then jump to the first item. Park the focus on an invisible view meanwhile, so that
+            // press only brings it back to where the controller left it (see the key listener).
             @Override public boolean dispatchTouchEvent(android.view.MotionEvent event) {
                 boolean handled = super.dispatchTouchEvent(event);
                 if (event.getActionMasked() == android.view.MotionEvent.ACTION_UP) {
-                    final float x = event.getRawX(), y = event.getRawY();
                     ui.post(new Runnable() {
-                        @Override public void run() { leaveTouchMode(x, y); }
+                        @Override public void run() { if (dialog.isShowing()) parking.requestFocus(); }
                     });
                 }
                 return handled;
             }
         };
+        parking = new View(activity);
+        parking.setFocusable(true);
+        parking.setFocusableInTouchMode(true);
         nav = new LinearLayout(activity);
         rows = new LinearLayout(activity);
         rowScroll = new ScrollView(activity);
@@ -324,7 +329,9 @@ final class QuickMenuDialog {
         resume.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view) { dialog.dismiss(); }
         });
+        resume.setFocusable(false); // Continue and Exit are touch only: Back / B closes the menu
         Button exit = small(R.string.quick_exit, 0xFFB71C1C, 0xFFE53935);
+        exit.setFocusable(false);
         exit.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view) { confirmExit(); }
         });
@@ -338,11 +345,26 @@ final class QuickMenuDialog {
         buttons.addView(exit, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(40)));
         panel.addView(buttons);
 
+        panel.addView(parking, new LinearLayout.LayoutParams(1, 1));
+        panel.getViewTreeObserver().addOnGlobalFocusChangeListener(new android.view.ViewTreeObserver.OnGlobalFocusChangeListener() {
+            @Override public void onGlobalFocusChanged(View oldFocus, View newFocus) {
+                if (newFocus != null && newFocus != parking) lastFocused = newFocus;
+            }
+        });
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setContentView(panel);
         dialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
             @Override public boolean onKey(DialogInterface d, int keyCode, KeyEvent event) {
                 if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+                // First key after a touch: back to where the controller was, nothing else.
+                if (dialog.getCurrentFocus() == parking && keyCode != KeyEvent.KEYCODE_BACK) {
+                    if (lastFocused != null && lastFocused.isAttachedToWindow() && lastFocused.isShown()) {
+                        lastFocused.requestFocus();
+                    } else {
+                        focusNav();
+                    }
+                    return true;
+                }
                 // L1 / L2: to the page list (left). R1 / R2: to the options of the page (right).
                 if (keyCode == KeyEvent.KEYCODE_BUTTON_L1 || keyCode == KeyEvent.KEYCODE_BUTTON_L2) {
                     focusNav();
@@ -424,32 +446,6 @@ final class QuickMenuDialog {
             }
         });
         nav.addView(item);
-    }
-
-    private void leaveTouchMode(float rawX, float rawY) {
-        if (!dialog.isShowing()) return;
-        View target = touchedFocusable(rows, rawX, rawY);
-        if (target == null) target = touchedFocusable(nav, rawX, rawY);
-        if (target != null) {
-            target.requestFocusFromTouch();
-        } else {
-            View focused = dialog.getCurrentFocus();
-            if (focused != null) focused.requestFocusFromTouch();
-            else focusNav();
-        }
-    }
-
-    private static View touchedFocusable(LinearLayout parent, float rawX, float rawY) {
-        int[] at = new int[2];
-        for (int i = 0; i < parent.getChildCount(); i++) {
-            View child = parent.getChildAt(i);
-            if (!child.isFocusable() || child.getVisibility() != View.VISIBLE) continue;
-            child.getLocationOnScreen(at);
-            if (rawX >= at[0] && rawX < at[0] + child.getWidth() && rawY >= at[1] && rawY < at[1] + child.getHeight()) {
-                return child;
-            }
-        }
-        return null;
     }
 
     /** The page list, on the current page. */

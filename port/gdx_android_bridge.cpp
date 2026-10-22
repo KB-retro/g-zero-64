@@ -317,9 +317,13 @@ extern "C" JNIEXPORT jfloat JNICALL Java_com_gzero64_GameBridge_nativeSetupProgr
 
 // ── Racing controller layout ────────────────────────────────────────────────────────────────────
 // gGZ64.RacingPad (default on): the first controller drives port 1 like a racing game instead of
-// through libultraship's N64 mapping. Stick or D-pad steer, RT / A accelerate, LT / X air brake,
-// B boost, LB / RB drift (Z / R), right stick the C buttons (camera, rear view...), Start pause.
-// Game thread, from input_bridge.c, where libultraship reads the same controllers.
+// through libultraship's N64 mapping. In a race: stick or D-pad steer, RT (or B) accelerates, A
+// (the bottom face button, whatever the layout) boosts, LT (or X) air brakes, LB / RB drift (Z /
+// R), right stick the C buttons (camera, rear view...), Start pauses. Outside races the face
+// buttons keep their menu meaning: A accepts, B goes back. Game thread, from input_bridge.c,
+// where libultraship reads the same controllers.
+extern "C" int gz64_in_race(void);
+
 extern "C" int gdx_android_racing_pad(uint16_t* buttons, int8_t* stickX, int8_t* stickY) {
     if (CVarGetInteger("gGZ64.RacingPad", 1) == 0) {
         return 0;
@@ -354,8 +358,13 @@ extern "C" int gdx_android_racing_pad(uint16_t* buttons, int8_t* stickX, int8_t*
         y = (button(SDL_CONTROLLER_BUTTON_DPAD_UP) ? 80 : 0) - (button(SDL_CONTROLLER_BUTTON_DPAD_DOWN) ? 80 : 0);
     }
     uint16_t n64 = 0;
-    if (button(SDL_CONTROLLER_BUTTON_A) || axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 0.3f) n64 |= 0x8000; // A
-    if (button(SDL_CONTROLLER_BUTTON_B)) n64 |= 0x4000;                                                // B
+    if (gz64_in_race() != 0) {
+        if (button(SDL_CONTROLLER_BUTTON_B) || axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 0.3f) n64 |= 0x8000; // A: gas
+        if (button(SDL_CONTROLLER_BUTTON_A)) n64 |= 0x4000;                                                  // B: boost
+    } else {
+        if (button(SDL_CONTROLLER_BUTTON_A) || axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 0.3f) n64 |= 0x8000; // accept
+        if (button(SDL_CONTROLLER_BUTTON_B)) n64 |= 0x4000;                                                  // back
+    }
     if (button(SDL_CONTROLLER_BUTTON_LEFTSHOULDER)) n64 |= 0x2000;                                     // Z
     if (button(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)) n64 |= 0x0010;                                    // R
     if (button(SDL_CONTROLLER_BUTTON_START)) n64 |= 0x1000;                                            // Start
