@@ -16,6 +16,13 @@ import org.libsdl.app.SDLActivity;
 /** SDL hosts the game, controller input and audio. */
 public final class GameActivity extends SDLActivity {
     private android.app.Dialog quickMenu;
+    private TouchControlsView touchControls;
+    private TouchLayoutStore touchLayoutStore;
+    private View editorToolbar;
+    private TouchPresetController touchPresets;
+    private android.widget.TextView fpsOverlay;
+    private int fpsLastFrames = -1;
+    private long fpsLastTime;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,6 +40,187 @@ public final class GameActivity extends SDLActivity {
         }
         super.onCreate(savedInstanceState);
         QuickMenuDialog.applyAutomaticFormat(this);
+        if (mLayout != null) {
+            touchLayoutStore = new TouchLayoutStore(appDir);
+            touchControls = new TouchControlsView(this);
+            touchControls.setLayout(touchLayoutStore.load());
+            mLayout.addView(touchControls, new android.view.ViewGroup.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+            setFpsOverlayVisible(getSharedPreferences("game", MODE_PRIVATE).getBoolean("fps", false));
+        }
+        restoreFullscreen();
+    }
+
+    TouchControlsView touchControls() { return touchControls; }
+
+    // ── FPS counter ─────────────────────────────────────────────────────────────────────────────
+
+    private final Runnable fpsUpdate = new Runnable() {
+        @Override public void run() {
+            if (fpsOverlay == null) return;
+            int frames;
+            try {
+                frames = GameBridge.nativeFrames();
+            } catch (UnsatisfiedLinkError error) {
+                return;
+            }
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (fpsLastFrames >= 0 && now > fpsLastTime)
+                fpsOverlay.setText(Math.round((frames - fpsLastFrames) * 1000f / (now - fpsLastTime)) + " FPS");
+            fpsLastFrames = frames;
+            fpsLastTime = now;
+            fpsOverlay.postDelayed(this, 1000);
+        }
+    };
+
+    boolean fpsOverlayVisible() { return fpsOverlay != null; }
+
+    void setFpsOverlayVisible(boolean show) {
+        getSharedPreferences("game", MODE_PRIVATE).edit().putBoolean("fps", show).apply();
+        if (mLayout == null) return;
+        if (show && fpsOverlay == null) {
+            fpsOverlay = new android.widget.TextView(this);
+            fpsOverlay.setTextColor(0xFFB8E9F5);
+            fpsOverlay.setTextSize(13);
+            fpsOverlay.setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD);
+            fpsOverlay.setShadowLayer(3, 1, 1, android.graphics.Color.BLACK);
+            fpsOverlay.setPadding(24, 12, 24, 12);
+            fpsOverlay.setText("-- FPS");
+            mLayout.addView(fpsOverlay, new android.view.ViewGroup.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
+            fpsLastFrames = -1;
+            fpsOverlay.post(fpsUpdate);
+        } else if (!show && fpsOverlay != null) {
+            fpsOverlay.removeCallbacks(fpsUpdate);
+            mLayout.removeView(fpsOverlay);
+            fpsOverlay = null;
+        }
+    }
+
+    // ── Touch control editor (as in NFSU-X) ─────────────────────────────────────────────────────
+
+    /** Opened from the quick menu: drag the buttons, resize the selected one, presets. */
+    void openTouchEditor() {
+        if (editorToolbar != null || touchControls == null) return;
+        try {
+            GameBridge.nativeSetMenuOpen(true); // the game holds still while editing
+        } catch (UnsatisfiedLinkError ignored) {
+        }
+        touchControls.beginEditing();
+        final android.widget.LinearLayout toolbar = new android.widget.LinearLayout(this);
+        toolbar.setOrientation(android.widget.LinearLayout.VERTICAL);
+        toolbar.setPadding(12, 4, 12, 4);
+        toolbar.setBackgroundColor(0xEE102F40);
+        android.widget.TextView title = new android.widget.TextView(this);
+        title.setText(R.string.editor_hint);
+        title.setPadding(8, 8, 8, 8);
+        title.setOnTouchListener(new View.OnTouchListener() {
+            private float offsetX, offsetY;
+            @Override public boolean onTouch(View view, android.view.MotionEvent event) {
+                if (event.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) {
+                    offsetX = event.getRawX() - toolbar.getX();
+                    offsetY = event.getRawY() - toolbar.getY();
+                } else if (event.getActionMasked() == android.view.MotionEvent.ACTION_MOVE) {
+                    toolbar.setX(Math.max(0, Math.min(mLayout.getWidth() - toolbar.getWidth(), event.getRawX() - offsetX)));
+                    toolbar.setY(Math.max(0, Math.min(mLayout.getHeight() - toolbar.getHeight(), event.getRawY() - offsetY)));
+                }
+                return true;
+            }
+        });
+        title.setTextColor(android.graphics.Color.WHITE);
+        toolbar.addView(title);
+        android.widget.LinearLayout actions = new android.widget.LinearLayout(this);
+        toolbar.addView(actions);
+        addEditorButton(actions, getString(R.string.action_save), new View.OnClickListener() {
+            @Override public void onClick(View view) {
+                try {
+                    touchLayoutStore.save(touchControls.getLayout());
+                    closeTouchEditor(true);
+                } catch (java.io.IOException exception) {
+                    Log.e("TouchLayout", "Cannot save layout", exception);
+                    android.widget.Toast.makeText(GameActivity.this, R.string.editor_save_failed,
+                            android.widget.Toast.LENGTH_LONG).show();
+                }
+            }
+        });
+        addEditorButton(actions, getString(R.string.editor_reset), new View.OnClickListener() {
+            @Override public void onClick(View view) { touchControls.resetLayout(); }
+        });
+        addEditorButton(actions, getString(R.string.action_cancel), new View.OnClickListener() {
+            @Override public void onClick(View view) { closeTouchEditor(false); }
+        });
+        final android.content.SharedPreferences editorPreferences = getSharedPreferences("touch-editor", MODE_PRIVATE);
+        android.widget.CheckBox snap = new android.widget.CheckBox(this);
+        snap.setText(R.string.editor_snap);
+        snap.setTextColor(android.graphics.Color.WHITE);
+        snap.setButtonTintList(android.content.res.ColorStateList.valueOf(0xFF55BCD8));
+        snap.setChecked(editorPreferences.getBoolean("snap_to_grid", false));
+        touchControls.setSnapToGrid(snap.isChecked());
+        snap.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+            @Override public void onCheckedChanged(android.widget.CompoundButton button, boolean checked) {
+                touchControls.setSnapToGrid(checked);
+                editorPreferences.edit().putBoolean("snap_to_grid", checked).apply();
+            }
+        });
+        toolbar.addView(snap);
+        final android.widget.TextView sizeLabel = new android.widget.TextView(this);
+        sizeLabel.setTextColor(android.graphics.Color.WHITE);
+        toolbar.addView(sizeLabel);
+        final android.widget.SeekBar sizeSlider = new android.widget.SeekBar(this);
+        sizeSlider.setMax(Math.round((TouchLayout.MAX_SIZE - TouchLayout.MIN_SIZE) * 100));
+        toolbar.addView(sizeSlider);
+        final String[] names = getResources().getStringArray(R.array.touch_button_names);
+        final Runnable updateSize = new Runnable() {
+            @Override public void run() {
+                int selected = touchControls.getSelectedButton();
+                sizeSlider.setEnabled(selected >= 0);
+                sizeSlider.setProgress(Math.round((touchControls.getSelectedSize() - TouchLayout.MIN_SIZE) * 100));
+                sizeLabel.setText(selected < 0 ? getString(R.string.editor_select_button)
+                        : names[selected] + " • " + Math.round(touchControls.getSelectedSize() * 100) + "%");
+            }
+        };
+        touchControls.setSelectionChanged(updateSize);
+        sizeSlider.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar slider, int progress, boolean fromUser) {
+                if (fromUser) {
+                    touchControls.resizeSelected(TouchLayout.MIN_SIZE + progress / 100f);
+                    updateSize.run();
+                }
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar slider) { }
+            @Override public void onStopTrackingTouch(android.widget.SeekBar slider) { }
+        });
+        updateSize.run();
+        touchPresets = new TouchPresetController(this, touchControls, RuntimeFiles.appDir(this), updateSize);
+        addEditorButton(actions, getString(R.string.editor_presets), new View.OnClickListener() {
+            @Override public void onClick(View view) { touchPresets.show(); }
+        });
+        editorToolbar = toolbar;
+        android.widget.RelativeLayout.LayoutParams params = new android.widget.RelativeLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.addRule(android.widget.RelativeLayout.CENTER_HORIZONTAL);
+        mLayout.addView(toolbar, params);
+    }
+
+    private void addEditorButton(android.widget.LinearLayout parent, String text, View.OnClickListener listener) {
+        android.widget.Button button = new android.widget.Button(this);
+        button.setText(text);
+        button.setAllCaps(false);
+        button.setOnClickListener(listener);
+        parent.addView(button);
+    }
+
+    private void closeTouchEditor(boolean save) {
+        if (editorToolbar == null) return;
+        mLayout.removeView(editorToolbar);
+        editorToolbar = null;
+        touchPresets = null;
+        touchControls.setSelectionChanged(null);
+        touchControls.endEditing(save);
+        try {
+            GameBridge.nativeSetMenuOpen(false);
+        } catch (UnsatisfiedLinkError ignored) {
+        }
         restoreFullscreen();
     }
 
@@ -49,20 +237,23 @@ public final class GameActivity extends SDLActivity {
 
     // Back opens the quick menu; leaving the game is its Exit button.
     @Override public void onBackPressed() {
-        showQuickMenu();
+        if (editorToolbar != null) closeTouchEditor(false);
+        else showQuickMenu();
     }
 
     // SDL takes a controller's Back key as a pad button before onBackPressed sees it.
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
-            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) showQuickMenu();
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) onBackPressed();
             return true;
         }
+        if (editorToolbar != null) return true; // the game is held while editing
         return super.dispatchKeyEvent(event);
     }
 
     private void showQuickMenu() {
         if (isFinishing() || isDestroyed() || (quickMenu != null && quickMenu.isShowing())) return;
+        if (touchControls != null) touchControls.cancelInput();
         quickMenu = QuickMenuDialog.show(this);
         quickMenu.setOnDismissListener(new android.content.DialogInterface.OnDismissListener() {
             @Override public void onDismiss(android.content.DialogInterface dialog) {
@@ -75,6 +266,7 @@ public final class GameActivity extends SDLActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
+        if (touchPresets != null && touchPresets.onActivityResult(requestCode, resultCode, data)) return;
         if (requestCode == QuickMenuDialog.PICK_MODS) {
             if (resultCode == RESULT_OK) QuickMenuDialog.modsPicked(this, data);
             return;
@@ -121,6 +313,12 @@ public final class GameActivity extends SDLActivity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) restoreFullscreen();
+    }
+
+    @Override
+    protected void onPause() {
+        if (touchControls != null) touchControls.cancelInput();
+        super.onPause();
     }
 
     @Override

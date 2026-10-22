@@ -25,6 +25,12 @@ final class GameBridge {
     /** Presses a button row. */
     static native boolean nativeMenuPress(String id);
 
+    /** Frames drawn so far, for the FPS counter. */
+    static native int nativeFrames();
+
+    /** Touch controls: N64 buttons for port 1 and the stick (-80..80, up positive). */
+    static native void nativeSetTouch(int buttons, int stickX, int stickY);
+
     static void setInt(String name, int value) {
         nativeSet(name, false, value);
     }

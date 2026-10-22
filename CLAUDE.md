@@ -28,5 +28,7 @@ de upstream salvo que se pida.
   (cola aplicada por el hilo del juego en cada fotograma). Pausa el juego mientras está abierto.
 - Parches de submódulos en `android/patches/<submódulo>/`, aplicados al configurar en Android:
   GLES highp, Select solo cierra el menú, FXAA/FSR 1.0 (`gGZ64.Fxaa`, `gGZ64.Fsr`, `gGZ64.FsrSharpness`).
+- Controles táctiles: `TouchControlsView.java` (adaptado de NFSU-X, mismo editor y preajustes);
+  manda botones N64 y stick al puerto 1 (`gdx_android_touch_state`, leído en `input_bridge.c`).
 - Textos del menú de G-Diffuser y de la configuración inicial: `port/gdx_i18n*` (español por defecto).
 - Ramas `ci/**` compilan en Actions solo para comprobar; los errores salen como anotaciones.

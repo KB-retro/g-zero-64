@@ -66,7 +66,10 @@ bool SkipOnAndroid(const GdxUI::WidgetInfo& widget) {
                                           "Open or close this menu with F1, Escape, or Gamepad Back.",
                                           "Developer tools can be embedded in this menu or popped out into independent windows.",
                                           "A popped-out window opens on top of this menu; close the menu (F1) to use it.",
-                                          "Windowing", "Multi-viewport docking" };
+                                          "Windowing", "Multi-viewport docking",
+                                          // The game text is English or Japanese only; the menu
+                                          // follows the system language.
+                                          "Idioma / Language" };
     for (const char* name : kNames) {
         if (widget.name == GdxTr(name)) {
             return true;
@@ -79,26 +82,17 @@ bool SkipOnAndroid(const GdxUI::WidgetInfo& widget) {
 // combo: the built-in modes, then the presets G-Zero 64 ships in shaders/gz64 (libretro slang
 // shaders chosen to run well on handhelds; hd/ ones work on the full frame, retro/ on N64 size).
 constexpr const char* kShaderId = "special/shader";
-constexpr const char* kShaderItems[] = { "Off", "Scanlines", "CRT (scanlines + grille)" };
+constexpr const char* kShaderItems[] = { "Off", "Scanlines", "Scanlines + grille" };
 struct ShaderPreset {
     const char* path; // PostPipeline value, relative to shaders/
     const char* label;
 };
 constexpr ShaderPreset kShaderPresets[] = {
     { "gz64/hd/sharpen-light.slangp", "HD - Light sharpening" },
-    { "gz64/hd/sharpen-adaptive.slangp", "HD - Adaptive sharpening" },
     { "gz64/hd/smaa.slangp", "HD - SMAA anti-aliasing" },
     { "gz64/hd/smaa-sharpen.slangp", "HD - SMAA + sharpening" },
     { "gz64/hd/vivid-colors.slangp", "HD - Vivid colours" },
-    { "gz64/hd/film.slangp", "HD - Film (Technicolor)" },
-    { "gz64/retro/crt-fast.slangp", "Retro - Fast CRT" },
-    { "gz64/retro/crt-lottes.slangp", "Retro - CRT Lottes" },
     { "gz64/retro/crt-sharp.slangp", "Retro - Sharp CRT" },
-    { "gz64/retro/crt-soft.slangp", "Retro - Soft CRT" },
-    { "gz64/retro/crt-curved.slangp", "Retro - Curved CRT" },
-    { "gz64/retro/crt-glow.slangp", "Retro - Glowing CRT" },
-    { "gz64/retro/composite-tv.slangp", "Retro - Composite TV" },
-    { "gz64/retro/vhs.slangp", "Retro - VHS" },
 };
 constexpr int kShaderBuiltins = sizeof(kShaderItems) / sizeof(kShaderItems[0]);
 constexpr int kShaderChoices = kShaderBuiltins + sizeof(kShaderPresets) / sizeof(kShaderPresets[0]);
@@ -201,10 +195,11 @@ const char* PictureTarget(const std::string& section, const std::string& page, c
         "VSync",                        // the Android display decides both
         "Fullscreen",
         "Post-process shaders moved to the Shaders page.",
+        "Show FPS counter overlay",     // the Java FPS counter (Display page) replaces the ImGui one
     };
     static const char* const kDisplay[] = {
         "Widescreen split-screen HUD", "Widescreen test drive", "Ultrawide (21:9+)", "Remove black borders",
-        "Hide race intro curtain", "Clip off-screen course previews", "Show FPS counter overlay",
+        "Hide race intro curtain", "Clip off-screen course previews",
     };
     const bool picturePage = (section == "Settings" && (page == "Graphics" || page == "Shaders")) ||
                              (section == "Enhancements" && page == "Visuals") ||
@@ -539,6 +534,11 @@ std::string GdxMenu::BridgeExportJson() {
             }
             // Mouse controls and the Discord status have nothing to work with on Android.
             if (sectionName == "Online" || (sectionName == "Enhancements" && pageName == "Mouse")) {
+                continue;
+            }
+            // The input viewer overlay gives way to the touch controls, all Java (QuickMenuDialog).
+            if (sectionName == "Settings" && pageName == "Input Viewer") {
+                Page(Section(layout, sectionName), "Touch controls", "touch");
                 continue;
             }
             const bool achievements = sectionName == "Enhancements" && pageName == "Achievements";

@@ -528,9 +528,44 @@ void StartLoad() {
 }
 
 // Starts or stops the pack when the option changes. Render thread, once per frame at most.
+// Results kept between lookups (render thread only): which pack entry, if any, a texture's bytes
+// matched, and the last hi-res images decoded. Without them every re-decode of a texture hashed
+// its bytes dozens of times and read and unpacked its replacement again.
+std::unordered_map<uint64_t, uint64_t> gMatches; // content hash -> pack key, 0 = not in pack
+struct Decoded {
+    std::vector<uint8_t> rgba;
+    uint32_t width, height;
+    uint64_t lastUse;
+};
+std::unordered_map<uint64_t, Decoded> gDecoded;
+size_t gDecodedBytes = 0;
+uint64_t gUseClock = 0;
+constexpr size_t kDecodedBudget = 160u << 20;
+constexpr size_t kMatchesLimit = 50000;
+
+// Drops the pack and everything derived from it; the next enable loads it again (from the index).
+void Unload() {
+    {
+        std::lock_guard<std::mutex> lock(gMutex);
+        gPack.reset();
+    }
+    if (gPayload != nullptr) {
+        std::fclose(gPayload);
+        gPayload = nullptr;
+    }
+    gMatches.clear();
+    gDecoded.clear();
+    gDecodedBytes = 0;
+    gHits = gMisses = gShapeMismatch = 0;
+    gState = kIdle;
+}
+
 void Refresh() {
     const int enabled = CVarGetInteger("gGZ64.HiresPack", 0) != 0 ? 1 : 0;
     if (enabled != gEnabled) {
+        if (enabled == 0 && gEnabled == 1 && gState != kLoading) {
+            Unload(); // also lets a deleted pack go
+        }
         gEnabled = enabled;
         ++gGeneration; // the renderer re-decodes every texture with or without the pack
         if (enabled && gState != kLoading && gState != kReady) {
@@ -631,6 +666,12 @@ uint64_t Checksum(const Gz64HtcQuery& q, uint32_t width, uint32_t height, uint32
 
 } // namespace
 
+namespace {
+const Entry* Search(const Gz64HtcQuery& query, const Pack& pack, uint64_t& hitKeyOut);
+const uint8_t* Decode(const Pack& pack, const Entry& entry, uint64_t key, const Gz64HtcQuery& q,
+                      uint32_t* outWidth, uint32_t* outHeight);
+} // namespace
+
 extern "C" int gz64_htc_active(void) {
     Refresh();
     return gEnabled == 1 && gState == kReady ? 1 : 0;
@@ -654,6 +695,51 @@ extern "C" const uint8_t* gz64_htc_find(const Gz64HtcQuery* q, uint32_t* outWidt
         return nullptr;
     }
 
+    // Same bytes, same shape, same palette: same answer as last time.
+    uint64_t contentKey = 1469598103934665603ull;
+    auto mix = [&contentKey](const uint8_t* data, size_t length) {
+        for (size_t i = 0; i < length; ++i) contentKey = (contentKey ^ data[i]) * 1099511628211ull;
+    };
+    const uint32_t shape[] = { q->fmt, q->siz, q->tlut, q->palette, q->lineBytes, q->fullLineBytes, q->tileLineBytes,
+                               q->tileWidth, q->tileHeight, q->masks, q->maskt, q->cms, q->cmt, q->width, q->height };
+    mix(reinterpret_cast<const uint8_t*>(shape), sizeof(shape));
+    const size_t span = std::min<size_t>(static_cast<size_t>(q->height - 1) * q->fullLineBytes + q->lineBytes, 16384);
+    mix(q->addr, span);
+    if (q->siz < 2 && q->palettes[0] != nullptr && q->palettes[1] != nullptr) {
+        mix(q->palettes[0], 256);
+        mix(q->palettes[1], 256);
+    }
+
+    const Entry* hit = nullptr;
+    uint64_t hitKey = 0;
+    auto known = gMatches.find(contentKey);
+    if (known != gMatches.end()) {
+        if (known->second == 0) {
+            return nullptr;
+        }
+        auto it = pack->entries.find(known->second);
+        if (it == pack->entries.end()) {
+            return nullptr;
+        }
+        hit = &it->second;
+        hitKey = known->second;
+    } else {
+        hit = Search(*q, *pack, hitKey);
+        if (gMatches.size() >= kMatchesLimit) {
+            gMatches.clear();
+        }
+        gMatches.emplace(contentKey, hit != nullptr ? hitKey : 0);
+        if (hit == nullptr) {
+            return nullptr;
+        }
+    }
+    return Decode(*pack, *hit, hitKey, *q, outWidth, outHeight);
+}
+
+namespace {
+
+const Entry* Search(const Gz64HtcQuery& query, const Pack& pack, uint64_t& hitKeyOut) {
+    const Gz64HtcQuery* q = &query;
     uint16_t palette[256];
     const uint16_t* paletteArg = nullptr;
     if (q->siz < 2 && q->palettes[0] != nullptr && q->palettes[1] != nullptr) {
@@ -679,6 +765,7 @@ extern "C" const uint8_t* gz64_htc_find(const Gz64HtcQuery* q, uint32_t* outWidt
     const Entry* hit = nullptr;
     uint64_t hitKey = 0;
     uint64_t firstKey = 0;
+    const Pack* packPtr = &pack;
     uint64_t tried[96];
     uint32_t triedCount = 0;
     for (uint32_t size : sizes) {
@@ -698,11 +785,11 @@ extern "C" const uint8_t* gz64_htc_find(const Gz64HtcQuery* q, uint32_t* outWidt
                     if (firstKey == 0) {
                         firstKey = key;
                     }
-                    auto it = pack->entries.find(key);
-                    if (it == pack->entries.end() && (key >> 32) != 0) {
-                        it = pack->entries.find(key & 0xFFFFFFFFull);
+                    auto it = packPtr->entries.find(key);
+                    if (it == packPtr->entries.end() && (key >> 32) != 0) {
+                        it = packPtr->entries.find(key & 0xFFFFFFFFull);
                     }
-                    if (it == pack->entries.end()) {
+                    if (it == packPtr->entries.end()) {
                         continue;
                     }
                     // The hi-res image has to keep the aspect of what the renderer maps.
@@ -712,7 +799,7 @@ extern "C" const uint8_t* gz64_htc_find(const Gz64HtcQuery* q, uint32_t* outWidt
                         continue;
                     }
                     hit = &it->second;
-                    hitKey = key;
+                    hitKey = it->first;
                     break;
                 }
                 if (hit != nullptr) break;
@@ -730,42 +817,98 @@ extern "C" const uint8_t* gz64_htc_find(const Gz64HtcQuery* q, uint32_t* outWidt
         }
         return nullptr;
     }
+    hitKeyOut = hitKey;
+    return hit;
+}
+
+// The entry as RGBA8, at most 4x the size the renderer maps (larger ones only cost memory and
+// bandwidth on a handheld), from the cache of recent decodes when possible.
+const uint8_t* Decode(const Pack& pack, const Entry& entry, uint64_t key, const Gz64HtcQuery& q,
+                      uint32_t* outWidth, uint32_t* outHeight) {
+    uint32_t factor = 1;
+    while (entry.width / (factor * 2) >= q.width * 4 && entry.height / (factor * 2) >= q.height * 4 &&
+           entry.width % (factor * 2) == 0 && entry.height % (factor * 2) == 0) {
+        factor *= 2;
+    }
+    const uint64_t cacheKey = key ^ (static_cast<uint64_t>(factor) << 58);
+    auto cached = gDecoded.find(cacheKey);
+    if (cached != gDecoded.end()) {
+        cached->second.lastUse = ++gUseClock;
+        *outWidth = cached->second.width;
+        *outHeight = cached->second.height;
+        return cached->second.rgba.data();
+    }
 
     if (gPayload == nullptr) {
-        gPayload = std::fopen(pack->payloadPath.c_str(), "rb");
+        gPayload = std::fopen(pack.payloadPath.c_str(), "rb");
         if (gPayload == nullptr) {
             return nullptr;
         }
     }
     static std::vector<uint8_t> raw, unpacked, rgba;
-    raw.resize(hit->size);
-    if (fseeko(gPayload, static_cast<off_t>(hit->offset), SEEK_SET) != 0 ||
-        std::fread(raw.data(), 1, hit->size, gPayload) != hit->size) {
+    raw.resize(entry.size);
+    if (fseeko(gPayload, static_cast<off_t>(entry.offset), SEEK_SET) != 0 ||
+        std::fread(raw.data(), 1, entry.size, gPayload) != entry.size) {
         return nullptr;
     }
     const uint8_t* pixels = raw.data();
-    if (Compressed(pack->layout, hit->format)) {
-        const uint32_t bpp = BytesPerPixel(pack->layout, hit->format, hit->texFormat, hit->pixelType);
-        uLongf length = static_cast<uLongf>(hit->width) * hit->height * bpp;
+    if (Compressed(pack.layout, entry.format)) {
+        const uint32_t bpp = BytesPerPixel(pack.layout, entry.format, entry.texFormat, entry.pixelType);
+        uLongf length = static_cast<uLongf>(entry.width) * entry.height * bpp;
         unpacked.resize(length);
-        if (uncompress(unpacked.data(), &length, raw.data(), hit->size) != Z_OK ||
-            length != static_cast<uLongf>(hit->width) * hit->height * bpp) {
+        if (uncompress(unpacked.data(), &length, raw.data(), entry.size) != Z_OK ||
+            length != static_cast<uLongf>(entry.width) * entry.height * bpp) {
             return nullptr;
         }
         pixels = unpacked.data();
     }
-    if (!ToRgba(pack->layout, *hit, pixels, rgba)) {
+    if (!ToRgba(pack.layout, entry, pixels, rgba)) {
         return nullptr;
     }
+
+    Decoded decoded{ {}, entry.width / factor, entry.height / factor, ++gUseClock };
+    if (factor == 1) {
+        decoded.rgba = rgba;
+    } else {
+        // Box filter: the average of each factor x factor block.
+        decoded.rgba.resize(static_cast<size_t>(decoded.width) * decoded.height * 4);
+        for (uint32_t y = 0; y < decoded.height; ++y) {
+            for (uint32_t x = 0; x < decoded.width; ++x) {
+                uint32_t sum[4] = { 0, 0, 0, 0 };
+                for (uint32_t dy = 0; dy < factor; ++dy) {
+                    const uint8_t* row = rgba.data() + ((static_cast<size_t>(y) * factor + dy) * entry.width + x * factor) * 4;
+                    for (uint32_t dx = 0; dx < factor; ++dx) {
+                        for (int c = 0; c < 4; ++c) sum[c] += row[dx * 4 + c];
+                    }
+                }
+                uint8_t* out = decoded.rgba.data() + (static_cast<size_t>(y) * decoded.width + x) * 4;
+                for (int c = 0; c < 4; ++c) out[c] = static_cast<uint8_t>(sum[c] / (factor * factor));
+            }
+        }
+    }
+
     const uint32_t hits = ++gHits;
     if (hits <= 10) {
-        gdx_port_logf("[htc] hit key %016llx -> %ux%u\n", static_cast<unsigned long long>(hitKey), hit->width,
-                      hit->height);
+        gdx_port_logf("[htc] hit key %016llx -> %ux%u (stored %ux%u)\n", static_cast<unsigned long long>(key),
+                      entry.width, entry.height, decoded.width, decoded.height);
     }
-    *outWidth = hit->width;
-    *outHeight = hit->height;
-    return rgba.data();
+    // Make room, least recently used first.
+    gDecodedBytes += decoded.rgba.size();
+    while (gDecodedBytes > kDecodedBudget && !gDecoded.empty()) {
+        auto oldest = gDecoded.begin();
+        for (auto it = gDecoded.begin(); it != gDecoded.end(); ++it) {
+            if (it->second.lastUse < oldest->second.lastUse) oldest = it;
+        }
+        gDecodedBytes -= oldest->second.rgba.size();
+        gDecoded.erase(oldest);
+    }
+    Decoded& stored = gDecoded[cacheKey] = std::move(decoded);
+    *outWidth = stored.width;
+    *outHeight = stored.height;
+    return stored.rgba.data();
 }
+
+} // namespace
 
 const char* Gz64HtcStatus() {
     static std::string line;

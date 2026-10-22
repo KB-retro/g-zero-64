@@ -376,6 +376,8 @@
     { "Shader passes: %d", "Pasadas del shader: %d" },
     { "Shader preset", "Preset de shader" },
     { "Off", "Desactivado" },
+    { "Scanlines + grille", "Líneas + rejilla" },
+    { "Touch controls", "Controles táctiles" },
     { "HD - Light sharpening", "HD · Nitidez ligera" },
     { "HD - Adaptive sharpening", "HD · Nitidez adaptativa" },
     { "HD - SMAA anti-aliasing", "HD · Suavizado SMAA" },

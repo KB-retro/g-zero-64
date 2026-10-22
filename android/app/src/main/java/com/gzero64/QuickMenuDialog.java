@@ -27,6 +27,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -405,7 +406,8 @@ final class QuickMenuDialog {
             addScalingRows();
         } else {
             switch (data.optString("key")) {
-                case "display": addFormatRow(); break;
+                case "display": addFormatRow(); addFpsRow(); break;
+                case "touch": addTouchRows(); break;
                 case "enhancements": addScalingRows(); break;
                 case "mods": addInstallRow(); break;
                 default: break;
@@ -496,6 +498,125 @@ final class QuickMenuDialog {
 
     // ── Installing packs ────────────────────────────────────────────────────────────────────────
 
+    private void addFpsRow() {
+        addChoice(R.string.quick_fps, 0, new Choice() {
+            @Override public String[] values() { return array(R.array.quick_off_on); }
+            @Override public int get() { return activity.fpsOverlayVisible() ? 1 : 0; }
+            @Override public void set(int value) { activity.setFpsOverlayVisible(value == 1); }
+        });
+    }
+
+    // ── Touch controls ──────────────────────────────────────────────────────────────────────────
+
+    private void addTouchRows() {
+        final TouchControlsView controls = activity.touchControls();
+        if (controls == null) return;
+        addChoice(R.string.quick_touch_mode, R.string.quick_touch_mode_tip, new Choice() {
+            @Override public String[] values() { return array(R.array.quick_touch_modes); }
+            @Override public int get() { return controls.getMode(); }
+            @Override public void set(int value) { controls.setMode(value); }
+        });
+        Button edit = new Button(activity);
+        edit.setText(R.string.quick_touch_editor);
+        edit.setAllCaps(false);
+        edit.setOnFocusChangeListener(footerOnFocus(activity.getString(R.string.quick_touch_editor_tip)));
+        edit.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view) {
+                dialog.dismiss();
+                activity.openTouchEditor();
+            }
+        });
+        rows.addView(edit);
+    }
+
+    // ── Installed packs ─────────────────────────────────────────────────────────────────────────
+
+    /** Installed packs: .o2r in mods/, .htc in hires/, music in mods/music/custom/. */
+    private static List<File> installedPacks(Context context) {
+        File appDir = RuntimeFiles.appDir(context);
+        List<File> files = new ArrayList<>();
+        for (String folder : new String[] {"mods", "hires", "mods/music/custom"}) {
+            File[] list = new File(appDir, folder).listFiles();
+            if (list == null) continue;
+            java.util.Arrays.sort(list);
+            for (File file : list) {
+                String lower = file.getName().toLowerCase(Locale.ROOT);
+                if (file.isFile() && (lower.endsWith(".o2r") || lower.endsWith(".htc") || lower.endsWith(".ogg")
+                        || lower.endsWith(".flac") || lower.endsWith(".wav"))) {
+                    files.add(file);
+                }
+            }
+        }
+        return files;
+    }
+
+    private void deletePacks() {
+        final List<File> files = installedPacks(activity);
+        if (files.isEmpty()) {
+            new AlertDialog.Builder(activity).setMessage(R.string.quick_delete_none)
+                    .setPositiveButton(R.string.action_close, null).show();
+            return;
+        }
+        final String[] names = new String[files.size()];
+        for (int i = 0; i < names.length; i++) names[i] = files.get(i).getName();
+        final boolean[] chosen = new boolean[names.length];
+        new AlertDialog.Builder(activity).setTitle(R.string.quick_delete_mods)
+                .setMultiChoiceItems(names, chosen, new DialogInterface.OnMultiChoiceClickListener() {
+                    @Override public void onClick(DialogInterface d, int which, boolean checked) { chosen[which] = checked; }
+                })
+                .setPositiveButton(R.string.action_delete, new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int which) {
+                        final List<File> doomed = new ArrayList<>();
+                        for (int i = 0; i < chosen.length; i++) if (chosen[i]) doomed.add(files.get(i));
+                        if (!doomed.isEmpty()) confirmDelete(doomed);
+                    }
+                })
+                .setNegativeButton(R.string.quick_cancel, null).show();
+    }
+
+    private void confirmDelete(final List<File> doomed) {
+        new AlertDialog.Builder(activity)
+                .setMessage(activity.getResources().getQuantityString(R.plurals.quick_delete_confirm, doomed.size(), doomed.size()))
+                .setPositiveButton(R.string.action_delete, new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int which) {
+                        boolean htc = false;
+                        int deleted = 0;
+                        File cache = new File(RuntimeFiles.appDir(activity), "cache/htc");
+                        for (File file : doomed) {
+                            if (file.getName().toLowerCase(Locale.ROOT).endsWith(".htc")) {
+                                htc = true;
+                                new File(cache, file.getName() + ".idx").delete();
+                                new File(cache, file.getName() + ".bin").delete();
+                            }
+                            if (file.delete()) deleted++;
+                        }
+                        if (htc) setSetting(HIRES_PACK, false, 0); // drops the pack it was using
+                        final String message = activity.getString(R.string.quick_deleted, deleted);
+                        worker.execute(new Runnable() {
+                            @Override public void run() {
+                                try {
+                                    GameBridge.nativeMenuPress(RELOAD_PACKS);
+                                } catch (UnsatisfiedLinkError ignored) {
+                                }
+                                final String json = readMenu();
+                                ui.post(new Runnable() {
+                                    @Override public void run() {
+                                        if (!dialog.isShowing()) return;
+                                        if (!json.isEmpty()) {
+                                            parse(json);
+                                            showPage(Math.min(currentPage, pages.size() - 1), 0);
+                                        }
+                                        footer.setText(message);
+                                        Toast.makeText(activity, message, Toast.LENGTH_LONG).show();
+                                    }
+                                });
+                            }
+                        });
+                    }
+                })
+                .setNegativeButton(R.string.quick_cancel, null).show();
+    }
+
     private void addInstallRow() {
         Button install = new Button(activity);
         install.setText(R.string.quick_install_mods);
@@ -515,6 +636,14 @@ final class QuickMenuDialog {
             }
         });
         rows.addView(install);
+        Button delete = new Button(activity);
+        delete.setText(R.string.quick_delete_mods);
+        delete.setAllCaps(false);
+        delete.setOnFocusChangeListener(footerOnFocus(activity.getString(R.string.quick_delete_mods_tip)));
+        delete.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view) { deletePacks(); }
+        });
+        rows.addView(delete);
         addChoice(R.string.quick_hires_pack, R.string.quick_hires_pack_tip, new Choice() {
             @Override public String[] values() { return array(R.array.quick_off_on); }
             @Override public int get() { return value(HIRES_PACK) != 0 ? 1 : 0; }
@@ -535,6 +664,7 @@ final class QuickMenuDialog {
         worker.execute(new Runnable() {
             @Override public void run() {
                 int installed = 0, skipped = 0;
+                final StringBuilder names = new StringBuilder();
                 File appDir = RuntimeFiles.appDir(activity);
                 for (Uri uri : uris) {
                     String name = displayName(activity, uri);
@@ -560,6 +690,7 @@ final class QuickMenuDialog {
                         byte[] buffer = new byte[1 << 16];
                         for (int n; (n = in.read(buffer)) > 0; ) out.write(buffer, 0, n);
                         installed++;
+                        names.append("\n• ").append(name);
                     } catch (IOException exception) {
                         Log.e("GZero64", "Cannot install " + name, exception);
                         skipped++;
@@ -586,6 +717,15 @@ final class QuickMenuDialog {
                             menu.showPage(Math.min(menu.currentPage, menu.pages.size() - 1), 0);
                         }
                         menu.footer.setText(message);
+                    }
+                });
+                final String report = message + names;
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override public void run() {
+                        if (activity.isFinishing() || activity.isDestroyed()) return;
+                        // A clear answer: what was installed and what was not.
+                        new AlertDialog.Builder(activity).setTitle(R.string.quick_install_mods_done)
+                                .setMessage(report).setPositiveButton(R.string.action_close, null).show();
                     }
                 });
             }

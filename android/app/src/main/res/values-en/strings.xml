@@ -69,6 +69,71 @@
     <string name="quick_hires_pack">Emulator HD pack (.htc)</string>
     <string name="quick_hires_pack_tip">Uses a GLideN64 .htc pack installed with “Install packs…”. Takes a while to prepare the first time. Experimental.</string>
     <string name="quick_installing">Copying…</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_delete">Delete</string>
+    <string name="editor_hint">Drag the buttons • the panel can be moved too</string>
+    <string name="editor_save_failed">Could not save the layout</string>
+    <string name="editor_reset">Reset</string>
+    <string name="editor_snap">Snap to grid</string>
+    <string name="editor_select_button">Select a button to resize it</string>
+    <string name="editor_presets">Presets</string>
+    <string name="presets_title">Control presets</string>
+    <string name="presets_save_as">Save as…</string>
+    <string name="presets_load">Load</string>
+    <string name="presets_import">Import XML</string>
+    <string name="presets_export">Export XML</string>
+    <string name="preset_name_hint">For example: Tablet</string>
+    <string name="preset_name_title">Preset name</string>
+    <string name="preset_overwrite_title">Overwrite “%1$s”?</string>
+    <string name="preset_overwrite">Overwrite</string>
+    <string name="preset_saved">Preset saved: %1$s</string>
+    <string name="preset_save_failed">Could not save the preset</string>
+    <string name="preset_list_failed">Could not read the preset list</string>
+    <string name="preset_none">No saved presets yet</string>
+    <string name="preset_delete_title">Delete preset</string>
+    <string name="preset_load_title">Load preset</string>
+    <string name="preset_delete_confirm">Delete “%1$s”?</string>
+    <string name="preset_delete_failed">Could not delete the preset</string>
+    <string name="preset_corrupt">The preset is damaged or unavailable</string>
+    <string name="preset_picker_unavailable">The system file picker is unavailable</string>
+    <string name="preset_exported">Preset exported</string>
+    <string name="preset_import_failed">Could not import the preset</string>
+    <string name="preset_export_failed">Could not export the preset</string>
+    <string name="preset_name_length">Enter a name of 1 to 48 characters</string>
+    <string name="preset_name_characters">The name contains invalid characters</string>
+    <string name="quick_touch_mode">Touch controls</string>
+    <string name="quick_touch_mode_tip">Automatic: hidden while a controller is connected.</string>
+    <string-array name="quick_touch_modes">
+        <item>Automatic</item>
+        <item>Shown</item>
+        <item>Hidden</item>
+    </string-array>
+    <string name="quick_touch_editor">Edit touch controls</string>
+    <string name="quick_touch_editor_tip">Move the buttons, resize them and save presets.</string>
+    <string-array name="touch_button_names">
+        <item>Pause (Start)</item>
+        <item>Accelerate (A)</item>
+        <item>Air brake (C-Down)</item>
+        <item>Boost (B)</item>
+        <item>Left</item>
+        <item>Right</item>
+        <item>Up</item>
+        <item>Down</item>
+        <item>Drift left (Z)</item>
+        <item>Drift right (R)</item>
+        <item>Camera (C-Right)</item>
+    </string-array>
+    <string name="quick_delete_mods">Delete packs…</string>
+    <string name="quick_delete_mods_tip">Choose the installed packs to delete.</string>
+    <string name="quick_delete_none">No packs installed.</string>
+    <plurals name="quick_delete_confirm">
+        <item quantity="one">Delete %d pack?</item>
+        <item quantity="other">Delete %d packs?</item>
+    </plurals>
+    <string name="quick_deleted">Deleted: %d.</string>
+    <string name="quick_install_mods_done">Pack installation</string>
     <string name="quick_cancel">Cancel</string>
     <string-array name="quick_formats">
         <item>Automatic</item>

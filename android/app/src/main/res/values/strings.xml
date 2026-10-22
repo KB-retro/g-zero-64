@@ -72,6 +72,71 @@
     <string name="quick_hires_pack">Pack HD de emuladores (.htc)</string>
     <string name="quick_hires_pack_tip">Usa un pack .htc de GLideN64 instalado con «Instalar packs…». La primera vez tarda en prepararse. Experimental.</string>
     <string name="quick_installing">Copiando…</string>
+    <string name="action_save">Guardar</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_close">Cerrar</string>
+    <string name="action_delete">Eliminar</string>
+    <string name="editor_hint">Arrastra los botones • el panel también se puede mover</string>
+    <string name="editor_save_failed">No se pudo guardar la disposición</string>
+    <string name="editor_reset">Restablecer</string>
+    <string name="editor_snap">Ajustar a la cuadrícula</string>
+    <string name="editor_select_button">Selecciona un botón para cambiar su tamaño</string>
+    <string name="editor_presets">Preajustes</string>
+    <string name="presets_title">Preajustes de controles</string>
+    <string name="presets_save_as">Guardar como…</string>
+    <string name="presets_load">Cargar</string>
+    <string name="presets_import">Importar XML</string>
+    <string name="presets_export">Exportar XML</string>
+    <string name="preset_name_hint">Por ejemplo: Tableta</string>
+    <string name="preset_name_title">Nombre del preajuste</string>
+    <string name="preset_overwrite_title">¿Sobrescribir «%1$s»?</string>
+    <string name="preset_overwrite">Sobrescribir</string>
+    <string name="preset_saved">Preajuste guardado: %1$s</string>
+    <string name="preset_save_failed">No se pudo guardar el preajuste</string>
+    <string name="preset_list_failed">No se pudo leer la lista de preajustes</string>
+    <string name="preset_none">Todavía no hay preajustes guardados</string>
+    <string name="preset_delete_title">Eliminar preajuste</string>
+    <string name="preset_load_title">Cargar preajuste</string>
+    <string name="preset_delete_confirm">¿Eliminar «%1$s»?</string>
+    <string name="preset_delete_failed">No se pudo eliminar el preajuste</string>
+    <string name="preset_corrupt">El preajuste está dañado o no disponible</string>
+    <string name="preset_picker_unavailable">El selector de archivos del sistema no está disponible</string>
+    <string name="preset_exported">Preajuste exportado</string>
+    <string name="preset_import_failed">No se pudo importar el preajuste</string>
+    <string name="preset_export_failed">No se pudo exportar el preajuste</string>
+    <string name="preset_name_length">Escribe un nombre de 1 a 48 caracteres</string>
+    <string name="preset_name_characters">El nombre contiene caracteres no válidos</string>
+    <string name="quick_touch_mode">Controles táctiles</string>
+    <string name="quick_touch_mode_tip">Automático: se ocultan mientras haya un mando conectado.</string>
+    <string-array name="quick_touch_modes">
+        <item>Automático</item>
+        <item>Visibles</item>
+        <item>Ocultos</item>
+    </string-array>
+    <string name="quick_touch_editor">Editar controles táctiles</string>
+    <string name="quick_touch_editor_tip">Mueve los botones, cambia su tamaño y guarda preajustes.</string>
+    <string-array name="touch_button_names">
+        <item>Pausa (Start)</item>
+        <item>Acelerar (A)</item>
+        <item>Freno de aire (C-abajo)</item>
+        <item>Turbo (B)</item>
+        <item>Izquierda</item>
+        <item>Derecha</item>
+        <item>Arriba</item>
+        <item>Abajo</item>
+        <item>Derrape izquierdo (Z)</item>
+        <item>Derrape derecho (R)</item>
+        <item>Cámara (C-derecha)</item>
+    </string-array>
+    <string name="quick_delete_mods">Borrar packs…</string>
+    <string name="quick_delete_mods_tip">Elige los packs instalados que quieres borrar.</string>
+    <string name="quick_delete_none">No hay packs instalados.</string>
+    <plurals name="quick_delete_confirm">
+        <item quantity="one">¿Borrar %d pack?</item>
+        <item quantity="other">¿Borrar %d packs?</item>
+    </plurals>
+    <string name="quick_deleted">Borrados: %d.</string>
+    <string name="quick_install_mods_done">Instalación de packs</string>
     <string name="quick_cancel">Cancelar</string>
     <string-array name="quick_formats">
         <item>Automático</item>

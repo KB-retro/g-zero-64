@@ -136,7 +136,25 @@ extern "C" int gdx_android_menu_open(void) {
     return sMenuOpen.load() ? 1 : 0;
 }
 
+// Frames drawn, for the Java FPS counter (GameActivity).
+static std::atomic<uint32_t> sFrames{ 0 };
+
+// Touch controls (TouchControlsView.java): N64 buttons and stick, merged into port 1 by
+// input_bridge.c.
+static std::atomic<uint32_t> sTouchButtons{ 0 };
+static std::atomic<int32_t> sTouchStick{ 0 }; // x in the low byte, y in the next
+
+extern "C" int gdx_android_touch_state(uint16_t* buttons, int8_t* stickX, int8_t* stickY) {
+    const uint32_t mask = sTouchButtons.load();
+    const int32_t stick = sTouchStick.load();
+    *buttons = static_cast<uint16_t>(mask);
+    *stickX = static_cast<int8_t>(stick & 0xFF);
+    *stickY = static_cast<int8_t>((stick >> 8) & 0xFF);
+    return mask != 0 || stick != 0;
+}
+
 extern "C" void gdx_android_bridge_tick(void) {
+    ++sFrames;
     std::vector<Request> writes;
     {
         std::lock_guard<std::mutex> lock(sMutex);
@@ -271,3 +289,13 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_gzero64_GameBridge_nativeMenuPres
     return ok ? JNI_TRUE : JNI_FALSE;
 }
 #endif
+
+extern "C" JNIEXPORT jint JNICALL Java_com_gzero64_GameBridge_nativeFrames(JNIEnv*, jclass) {
+    return static_cast<jint>(sFrames.load());
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_gzero64_GameBridge_nativeSetTouch(JNIEnv*, jclass, jint buttons,
+                                                                          jint stickX, jint stickY) {
+    sTouchButtons = static_cast<uint32_t>(buttons) & 0xFFFFu;
+    sTouchStick = (stickX & 0xFF) | ((stickY & 0xFF) << 8);
+}

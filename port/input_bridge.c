@@ -814,6 +814,25 @@ void gdx_controller_poll(void) {
         buttons[i] = gdx_input_actions_apply(i, buttons[i]);
     }
 
+#ifdef __ANDROID__
+    // G-Zero 64 touch controls (port/gdx_android_bridge.cpp): N64 buttons as drawn on screen, so
+    // they skip the action layer above; the stick replaces the pad's while a direction is held.
+    {
+        extern int gdx_android_touch_state(u16 * buttons, s8 * stickX, s8 * stickY);
+        u16 touchButtons = 0;
+        s8 touchX = 0, touchY = 0;
+        if (gdx_android_touch_state(&touchButtons, &touchX, &touchY)) {
+            buttons[0] |= touchButtons;
+            if (touchX != 0) {
+                stick_x[0] = touchX;
+            }
+            if (touchY != 0) {
+                stick_y[0] = touchY;
+            }
+        }
+    }
+#endif
+
     // Issue #18 mouse steering: absolute position drive — gdx_mouse_steer_stick_x() maps the
     // cursor X inside the blit rect to stick deflection and OVERRIDES player 0's stick X while
     // the mouse is live. Race modes only — gdx_gamemode_is_race() excludes the editors, so this
