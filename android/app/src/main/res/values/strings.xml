@@ -140,6 +140,44 @@
     <string name="install_title">Instalando…</string>
     <string name="install_note">Solo la primera vez. Puede tardar unos minutos.</string>
     <string name="install_percent">%d %%</string>
+    <string name="quick_effects_profile">Perfil</string>
+    <string name="quick_effects_profile_tip">Ajusta todos los efectos de una vez. Con un preset de Shaders activo, los efectos no se aplican.</string>
+    <string-array name="quick_effect_profiles">
+        <item>Desactivado</item>
+        <item>Ligero</item>
+        <item>Moderno</item>
+        <item>Neón</item>
+        <item>Cine</item>
+        <item>Personalizado</item>
+    </string-array>
+    <string-array name="quick_effect_levels">
+        <item>Desactivado</item>
+        <item>Bajo</item>
+        <item>Medio</item>
+        <item>Alto</item>
+    </string-array>
+    <string name="quick_effect_bloom">Bloom (resplandor)</string>
+    <string name="quick_effect_bloom_tip">Las luces, neones y turbos brillan y se difuminan alrededor.</string>
+    <string name="quick_effect_hdr">Tono HDR</string>
+    <string name="quick_effect_hdr_tip">Más contraste y profundidad: negros más ricos y luces más vivas.</string>
+    <string name="quick_effect_vibrance">Colores vivos</string>
+    <string name="quick_effect_vibrance_tip">Satura los colores apagados sin quemar los que ya son intensos.</string>
+    <string name="quick_effect_style">Estilo de color</string>
+    <string name="quick_effect_style_tip">Gradación de color de toda la imagen.</string>
+    <string-array name="quick_effect_styles">
+        <item>Original</item>
+        <item>Cine</item>
+        <item>Cálido</item>
+        <item>Frío</item>
+        <item>Neón</item>
+        <item>Retro</item>
+    </string-array>
+    <string name="quick_effect_vignette">Viñeta</string>
+    <string name="quick_effect_vignette_tip">Oscurece los bordes de la pantalla.</string>
+    <string name="quick_effect_speed">Desenfoque de velocidad</string>
+    <string name="quick_effect_speed_tip">Desenfoque en los lados según la velocidad de tu nave, más con el turbo. Solo en carreras de un jugador.</string>
+    <string name="quick_effect_cas">Nitidez CAS</string>
+    <string name="quick_effect_cas_tip">Nitidez de AMD sin halos. Con FSR activo se usa la nitidez de FSR.</string>
     <string name="quick_cancel">Cancelar</string>
     <string-array name="quick_formats">
         <item>Automático</item>

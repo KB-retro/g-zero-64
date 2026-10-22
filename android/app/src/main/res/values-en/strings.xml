@@ -137,6 +137,44 @@
     <string name="install_title">Installing…</string>
     <string name="install_note">Only the first time. It can take a few minutes.</string>
     <string name="install_percent">%d %%</string>
+    <string name="quick_effects_profile">Profile</string>
+    <string name="quick_effects_profile_tip">Sets every effect at once. With a Shaders preset on, the effects are not applied.</string>
+    <string-array name="quick_effect_profiles">
+        <item>Off</item>
+        <item>Light</item>
+        <item>Modern</item>
+        <item>Neon</item>
+        <item>Cinema</item>
+        <item>Custom</item>
+    </string-array>
+    <string-array name="quick_effect_levels">
+        <item>Off</item>
+        <item>Low</item>
+        <item>Medium</item>
+        <item>High</item>
+    </string-array>
+    <string name="quick_effect_bloom">Bloom</string>
+    <string name="quick_effect_bloom_tip">Lights, neons and boosts glow and spread.</string>
+    <string name="quick_effect_hdr">HDR tone</string>
+    <string name="quick_effect_hdr_tip">More contrast and depth: richer blacks and livelier lights.</string>
+    <string name="quick_effect_vibrance">Vibrance</string>
+    <string name="quick_effect_vibrance_tip">Saturates dull colours without burning the already vivid ones.</string>
+    <string name="quick_effect_style">Colour style</string>
+    <string name="quick_effect_style_tip">Colour grading of the whole picture.</string>
+    <string-array name="quick_effect_styles">
+        <item>Original</item>
+        <item>Cinema</item>
+        <item>Warm</item>
+        <item>Cold</item>
+        <item>Neon</item>
+        <item>Retro</item>
+    </string-array>
+    <string name="quick_effect_vignette">Vignette</string>
+    <string name="quick_effect_vignette_tip">Darkens the edges of the screen.</string>
+    <string name="quick_effect_speed">Speed blur</string>
+    <string name="quick_effect_speed_tip">Blur at the sides with your machine's speed, more when boosting. Single-player races only.</string>
+    <string name="quick_effect_cas">CAS sharpening</string>
+    <string name="quick_effect_cas_tip">AMD sharpening without halos. With FSR on, FSR's sharpening is used.</string>
     <string name="quick_cancel">Cancel</string>
     <string-array name="quick_formats">
         <item>Automatic</item>

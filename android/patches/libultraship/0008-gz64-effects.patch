@@ -1,0 +1,313 @@
+diff --git a/include/fast/backends/gfx_opengl.h b/include/fast/backends/gfx_opengl.h
+index bccc4fa..e821e15 100644
+--- a/include/fast/backends/gfx_opengl.h
++++ b/include/fast/backends/gfx_opengl.h
+@@ -216,6 +216,10 @@ class GfxRenderingAPIOGL final : public GfxRenderingAPI {
+     GLuint mGz64Programs[3] = { 0, 0, 0 }; // FXAA, EASU, RCAS
+     bool mGz64Attempted[3] = { false, false, false };
+     int mGz64Fb[3] = { -1, -1, -1 };
++    // G-Zero 64 picture effects: bloom extract, blur, effects, CAS; bloom at quarter size.
++    GLuint mGz64FxPrograms[4] = { 0, 0, 0, 0 };
++    bool mGz64FxAttempted[4] = { false, false, false, false };
++    int mGz64BloomFb[2] = { -1, -1 };
+ #if defined(__APPLE__) || defined(USE_OPENGLES)
+     GLuint mPostVao = 0; // attribute-less fullscreen triangle still needs a VAO on core profiles
+ #endif
+diff --git a/include/fast/backends/gfx_rendering_api.h b/include/fast/backends/gfx_rendering_api.h
+index 2c66948..410aa23 100644
+--- a/include/fast/backends/gfx_rendering_api.h
++++ b/include/fast/backends/gfx_rendering_api.h
+@@ -98,8 +98,9 @@ class GfxRenderingAPI {
+                                            uint32_t nativeH, uint32_t outW, uint32_t outH) {
+         return 0;
+     }
+-    // G-Zero 64: FXAA and/or FSR 1.0 (EASU + RCAS) on srcFbId at full resolution. FSR upscales to
+-    // outW x outH; FXAA alone keeps the source size. Returns the result's texture id, 0 = not applied.
++    // G-Zero 64: picture effects (gGZ64.Bloom, Hdr, Vibrance, Style, Vignette, SpeedBlur, Cas), then FXAA
++    // and/or FSR 1.0 (EASU + RCAS) on srcFbId at full resolution. FSR upscales to outW x outH; the rest
++    // keep the source size. Returns the result's texture id, 0 = nothing applied.
+     virtual uintptr_t Gz64ApplyFilters(int srcFbId, uint32_t outW, uint32_t outH, bool fxaa, bool fsr,
+                                        float sharpness) {
+         return 0;
+diff --git a/src/fast/backends/gfx_opengl.cpp b/src/fast/backends/gfx_opengl.cpp
+index 2033811..b2b6b11 100644
+--- a/src/fast/backends/gfx_opengl.cpp
++++ b/src/fast/backends/gfx_opengl.cpp
+@@ -1803,11 +1803,162 @@ static const char* sGz64RcasFs = GZ64_FS_PRELUDE
+     "    gdxFragColor = vec4(clamp(c, 0.0, 1.0), 1.0);\n"
+     "}\n";
+ 
++// ---------------------------------------------------------------------------------------------
++// G-Zero 64 picture effects (ReShade-like, all on the final image): bloom from a quarter-size
++// bright pass blurred both ways, filmic HDR tone, vibrance, colour styles, vignette, a radial
++// speed blur driven by the player's speed, and AMD FidelityFX CAS sharpening (MIT).
++// ---------------------------------------------------------------------------------------------
++static const char* sGz64BloomDownFs = GZ64_FS_PRELUDE
++    "uniform sampler2D uTex;\n"
++    "uniform vec2 uInSize;\n"
++    "uniform float uThreshold;\n"
++    "vec3 F(ivec2 p) { return texelFetch(uTex, clamp(p, ivec2(0), ivec2(uInSize) - 1), 0).rgb; }\n"
++    "void main() {\n"
++    "    ivec2 base = ivec2(gl_FragCoord.xy) * 4;\n"
++    "    vec3 sum = vec3(0.0);\n"
++    "    for (int y = 0; y < 4; y++) {\n"
++    "        for (int x = 0; x < 4; x++) {\n"
++    "            vec3 c = F(base + ivec2(x, y));\n"
++    "            float b = max(c.r, max(c.g, c.b));\n"
++    "            float k = clamp((b - uThreshold) / (1.0 - uThreshold + 1.0e-4), 0.0, 1.0);\n"
++    "            sum += c * k * k;\n"
++    "        }\n"
++    "    }\n"
++    "    gdxFragColor = vec4(sum / 16.0, 1.0);\n"
++    "}\n";
++
++static const char* sGz64BlurFs = GZ64_FS_PRELUDE
++    "uniform sampler2D uTex;\n"
++    "uniform vec2 uInSize;\n"
++    "uniform vec2 uDir;\n"
++    "vec3 F(ivec2 p) { return texelFetch(uTex, clamp(p, ivec2(0), ivec2(uInSize) - 1), 0).rgb; }\n"
++    "void main() {\n"
++    "    ivec2 p = ivec2(gl_FragCoord.xy);\n"
++    "    vec3 sum = F(p) * 0.2270;\n"
++    "    sum += (F(p + ivec2(uDir * 2.0)) + F(p - ivec2(uDir * 2.0))) * 0.1945;\n"
++    "    sum += (F(p + ivec2(uDir * 4.0)) + F(p - ivec2(uDir * 4.0))) * 0.1216;\n"
++    "    sum += (F(p + ivec2(uDir * 6.0)) + F(p - ivec2(uDir * 6.0))) * 0.0540;\n"
++    "    sum += (F(p + ivec2(uDir * 8.0)) + F(p - ivec2(uDir * 8.0))) * 0.0162;\n"
++    "    gdxFragColor = vec4(sum, 1.0);\n"
++    "}\n";
++
++static const char* sGz64EffectsFs = GZ64_FS_PRELUDE
++    "uniform sampler2D uTex;\n"
++    "uniform sampler2D uBloom;\n"
++    "uniform vec2 uInSize;\n"
++    "uniform vec2 uBloomSize;\n"
++    "uniform float uBloomAmt;\n"
++    "uniform float uHdr;\n"
++    "uniform float uVibrance;\n"
++    "uniform float uVignette;\n"
++    "uniform float uSpeed;\n"
++    "uniform int uStyle;\n"
++    "vec3 F(ivec2 p) { return texelFetch(uTex, clamp(p, ivec2(0), ivec2(uInSize) - 1), 0).rgb; }\n"
++    "vec3 B(ivec2 p) { return texelFetch(uBloom, clamp(p, ivec2(0), ivec2(uBloomSize) - 1), 0).rgb; }\n"
++    "vec3 Bloom(vec2 fc) {\n"
++    "    vec2 q = fc / 4.0 - 0.5;\n"
++    "    vec2 f = fract(q);\n"
++    "    ivec2 i = ivec2(floor(q));\n"
++    "    return mix(mix(B(i), B(i + ivec2(1, 0)), f.x), mix(B(i + ivec2(0, 1)), B(i + ivec2(1, 1)), f.x), f.y);\n"
++    "}\n"
++    "void main() {\n"
++    "    ivec2 p = ivec2(gl_FragCoord.xy);\n"
++    "    vec2 uv = gl_FragCoord.xy / uInSize;\n"
++    "    vec3 c = F(p);\n"
++    "    if (uSpeed > 0.0) {\n"
++    "        // Radial blur toward the centre, only at the sides: the HUD lives near the top and bottom.\n"
++    "        vec2 d = uv - 0.5;\n"
++    "        float m = smoothstep(0.18, 0.55, length(d * vec2(1.0, 0.75)));\n"
++    "        m *= smoothstep(0.0, 0.2, uv.y) * smoothstep(0.0, 0.2, 1.0 - uv.y);\n"
++    "        float s = uSpeed * m;\n"
++    "        if (s > 0.001) {\n"
++    "            vec3 acc = c;\n"
++    "            for (int i = 1; i < 8; i++) {\n"
++    "                acc += F(ivec2((uv - d * (float(i) * 0.014 * s)) * uInSize));\n"
++    "            }\n"
++    "            c = acc / 8.0;\n"
++    "        }\n"
++    "    }\n"
++    "    if (uBloomAmt > 0.0) {\n"
++    "        c += Bloom(gl_FragCoord.xy) * uBloomAmt;\n"
++    "    }\n"
++    "    if (uHdr > 0.0) {\n"
++    "        vec3 x = c * (1.0 + 0.3 * uHdr);\n"
++    "        vec3 aces = clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);\n"
++    "        vec3 curve = aces * aces * (3.0 - 2.0 * aces);\n"
++    "        c = mix(c, mix(aces, curve, 0.35), uHdr);\n"
++    "    }\n"
++    "    float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n"
++    "    if (uVibrance > 0.0) {\n"
++    "        float sat = max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b));\n"
++    "        c = mix(vec3(l), c, 1.0 + uVibrance * 0.8 * (1.0 - sat));\n"
++    "    }\n"
++    "    if (uStyle == 1) {\n"
++    "        c += vec3(-0.02, 0.01, 0.04) * (1.0 - l) + vec3(0.05, 0.015, -0.04) * l;\n"
++    "        c = mix(vec3(l), c, 0.9);\n"
++    "    } else if (uStyle == 2) {\n"
++    "        c *= vec3(1.07, 1.0, 0.90);\n"
++    "    } else if (uStyle == 3) {\n"
++    "        c *= vec3(0.92, 1.0, 1.08);\n"
++    "    } else if (uStyle == 4) {\n"
++    "        c = mix(vec3(l), c, 1.35) + vec3(0.04, -0.02, 0.05) * smoothstep(0.4, 1.0, l);\n"
++    "    } else if (uStyle == 5) {\n"
++    "        c = mix(vec3(l), c, 0.75) * vec3(1.05, 1.0, 0.88) + 0.03;\n"
++    "    }\n"
++    "    if (uVignette > 0.0) {\n"
++    "        float v = smoothstep(0.30, 0.85, length(uv - 0.5) * 1.25);\n"
++    "        c *= 1.0 - uVignette * 0.6 * v;\n"
++    "    }\n"
++    "    gdxFragColor = vec4(clamp(c, 0.0, 1.0), 1.0);\n"
++    "}\n";
++
++static const char* sGz64CasFs = GZ64_FS_PRELUDE
++    "uniform sampler2D uTex;\n"
++    "uniform vec2 uInSize;\n"
++    "uniform float uSharp;\n"
++    "vec3 F(ivec2 p) { return texelFetch(uTex, clamp(p, ivec2(0), ivec2(uInSize) - 1), 0).rgb; }\n"
++    "void main() {\n"
++    "    ivec2 p = ivec2(gl_FragCoord.xy);\n"
++    "    vec3 a = F(p + ivec2(-1, -1)), b = F(p + ivec2(0, -1)), c = F(p + ivec2(1, -1));\n"
++    "    vec3 d = F(p + ivec2(-1, 0)), e = F(p), f = F(p + ivec2(1, 0));\n"
++    "    vec3 g = F(p + ivec2(-1, 1)), h = F(p + ivec2(0, 1)), i = F(p + ivec2(1, 1));\n"
++    "    vec3 mn = min(min(min(d, e), min(f, b)), h);\n"
++    "    mn += min(mn, min(min(a, c), min(g, i)));\n"
++    "    vec3 mx = max(max(max(d, e), max(f, b)), h);\n"
++    "    mx += max(mx, max(max(a, c), max(g, i)));\n"
++    "    vec3 amp = sqrt(clamp(min(mn, 2.0 - mx) / max(mx, vec3(1.0e-5)), 0.0, 1.0));\n"
++    "    vec3 w = amp * (-1.0 / mix(8.0, 5.0, uSharp));\n"
++    "    vec3 o = (b * w + d * w + f * w + h * w + e) / (1.0 + 4.0 * w);\n"
++    "    gdxFragColor = vec4(clamp(o, 0.0, 1.0), 1.0);\n"
++    "}\n";
++
++// Speed blur strength from the player's speed and boost (port/decomp_port.c); 0 outside races.
++extern "C" float gz64_speed_blur_amount(void);
++
+ uintptr_t GfxRenderingAPIOGL::Gz64ApplyFilters(int srcFbId, uint32_t outW, uint32_t outH, bool fxaa, bool fsr,
+                                                  float sharpness) {
+-    if (srcFbId <= 0 || srcFbId >= (int)mFrameBuffers.size() || outW == 0 || outH == 0 || (!fxaa && !fsr)) {
++    const float bloom = std::clamp(CVarGetFloat("gGZ64.Bloom", 0.0f), 0.0f, 1.0f);
++    const float hdr = std::clamp(CVarGetFloat("gGZ64.Hdr", 0.0f), 0.0f, 1.0f);
++    const float vibrance = std::clamp(CVarGetFloat("gGZ64.Vibrance", 0.0f), 0.0f, 1.0f);
++    const int style = CVarGetInteger("gGZ64.Style", 0);
++    const float vignette = std::clamp(CVarGetFloat("gGZ64.Vignette", 0.0f), 0.0f, 1.0f);
++    const float speedSetting = std::clamp(CVarGetFloat("gGZ64.SpeedBlur", 0.0f), 0.0f, 1.0f);
++    const float speed = speedSetting > 0.0f ? speedSetting * gz64_speed_blur_amount() : 0.0f;
++    const float cas = fsr ? 0.0f : std::clamp(CVarGetFloat("gGZ64.Cas", 0.0f), 0.0f, 1.0f); // FSR has RCAS
++    const bool effects = bloom > 0.0f || hdr > 0.0f || vibrance > 0.0f || style != 0 || vignette > 0.0f ||
++                         speedSetting > 0.0f;
++    if (srcFbId <= 0 || srcFbId >= (int)mFrameBuffers.size() || outW == 0 || outH == 0 ||
++        (!fxaa && !fsr && !effects && cas <= 0.0f)) {
+         return 0;
+     }
++    const char* fxSources[4] = { sGz64BloomDownFs, sGz64BlurFs, sGz64EffectsFs, sGz64CasFs };
++    const bool fxWanted[4] = { effects && bloom > 0.0f, effects && bloom > 0.0f, effects, cas > 0.0f };
++    for (int i = 0; i < 4; i++) {
++        if (fxWanted[i] && !mGz64FxAttempted[i]) {
++            mGz64FxAttempted[i] = true;
++            mGz64FxPrograms[i] = GdxCompilePostProgram(sGdxPostVsSource, fxSources[i]);
++        }
++    }
+     const char* sources[3] = { sGz64FxaaFs, sGz64EasuFs, sGz64RcasFs };
+     for (int i = 0; i < 3; i++) {
+         if (!mGz64Attempted[i] && ((i == 0 && fxaa) || (i > 0 && fsr))) {
+@@ -1818,6 +1969,17 @@ uintptr_t GfxRenderingAPIOGL::Gz64ApplyFilters(int srcFbId, uint32_t outW, uint3
+     if ((fxaa && mGz64Programs[0] == 0) || (fsr && (mGz64Programs[1] == 0 || mGz64Programs[2] == 0))) {
+         return 0;
+     }
++    const bool runBloom = fxWanted[0] && mGz64FxPrograms[0] != 0 && mGz64FxPrograms[1] != 0;
++    const bool runEffects = effects && mGz64FxPrograms[2] != 0;
++    const bool runCas = cas > 0.0f && mGz64FxPrograms[3] != 0;
++    if (!fxaa && !fsr && !runEffects && !runCas) {
++        return 0;
++    }
++    for (int& fb : mGz64BloomFb) {
++        if (fb < 0) {
++            fb = CreateFramebuffer();
++        }
++    }
+     for (int& fb : mGz64Fb) {
+         if (fb < 0) {
+             fb = CreateFramebuffer();
+@@ -1870,11 +2032,69 @@ uintptr_t GfxRenderingAPIOGL::Gz64ApplyFilters(int srcFbId, uint32_t outW, uint3
+         curW = w;
+         curH = h;
+     };
++    if (runEffects) {
++        const GLuint source = curTex;
++        const uint32_t srcW = curW, srcH = curH;
++        const uint32_t bloomW = (srcW + 3) / 4, bloomH = (srcH + 3) / 4;
++        GLuint bloomTex = 0;
++        if (runBloom) {
++            // Bright pass at quarter size, then blurred across and down (bloom FBs, not the ring).
++            auto bloomPass = [&](int fbIndex, GLuint program, GLuint input, auto&& setUniforms) {
++                const int fb = mGz64BloomFb[fbIndex];
++                UpdateFramebufferParameters(fb, bloomW, bloomH, 1, true, true, false, false);
++                glBindFramebuffer(GL_FRAMEBUFFER, mFrameBuffers[fb].fbo);
++                glViewport(0, 0, (GLint)bloomW, (GLint)bloomH);
++                glUseProgram(program);
++                glBindTexture(GL_TEXTURE_2D, input);
++                glUniform1i(glGetUniformLocation(program, "uTex"), 0);
++                setUniforms(program);
++                glDrawArrays(GL_TRIANGLES, 0, 3);
++                return mFrameBuffers[fb].clrbuf;
++            };
++            GLuint t = bloomPass(0, mGz64FxPrograms[0], source, [&](GLuint program) {
++                glUniform2f(glGetUniformLocation(program, "uInSize"), (float)srcW, (float)srcH);
++                glUniform1f(glGetUniformLocation(program, "uThreshold"), 0.8f - 0.15f * bloom);
++            });
++            t = bloomPass(1, mGz64FxPrograms[1], t, [&](GLuint program) {
++                glUniform2f(glGetUniformLocation(program, "uInSize"), (float)bloomW, (float)bloomH);
++                glUniform2f(glGetUniformLocation(program, "uDir"), 1.0f, 0.0f);
++            });
++            bloomTex = bloomPass(0, mGz64FxPrograms[1], t, [&](GLuint program) {
++                glUniform2f(glGetUniformLocation(program, "uInSize"), (float)bloomW, (float)bloomH);
++                glUniform2f(glGetUniformLocation(program, "uDir"), 0.0f, 1.0f);
++            });
++        }
++        GLint prevUnit1 = 0;
++        glActiveTexture(GL_TEXTURE1);
++        glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevUnit1);
++        glBindTexture(GL_TEXTURE_2D, bloomTex != 0 ? bloomTex : source);
++        glActiveTexture(GL_TEXTURE0);
++        runPass(mGz64FxPrograms[2], srcW, srcH, [&](GLuint program) {
++            glUniform1i(glGetUniformLocation(program, "uBloom"), 1);
++            glUniform2f(glGetUniformLocation(program, "uInSize"), (float)srcW, (float)srcH);
++            glUniform2f(glGetUniformLocation(program, "uBloomSize"), (float)bloomW, (float)bloomH);
++            glUniform1f(glGetUniformLocation(program, "uBloomAmt"), bloomTex != 0 ? bloom : 0.0f);
++            glUniform1f(glGetUniformLocation(program, "uHdr"), hdr);
++            glUniform1f(glGetUniformLocation(program, "uVibrance"), vibrance);
++            glUniform1f(glGetUniformLocation(program, "uVignette"), vignette);
++            glUniform1f(glGetUniformLocation(program, "uSpeed"), speed);
++            glUniform1i(glGetUniformLocation(program, "uStyle"), style);
++        });
++        glActiveTexture(GL_TEXTURE1);
++        glBindTexture(GL_TEXTURE_2D, (GLuint)prevUnit1);
++        glActiveTexture(GL_TEXTURE0);
++    }
+     if (fxaa) {
+         runPass(mGz64Programs[0], curW, curH, [&](GLuint program) {
+             glUniform2f(glGetUniformLocation(program, "uTexel"), 1.0f / (float)curW, 1.0f / (float)curH);
+         });
+     }
++    if (runCas) {
++        runPass(mGz64FxPrograms[3], curW, curH, [&](GLuint program) {
++            glUniform2f(glGetUniformLocation(program, "uInSize"), (float)curW, (float)curH);
++            glUniform1f(glGetUniformLocation(program, "uSharp"), cas);
++        });
++    }
+     if (fsr) {
+         const uint32_t inW = curW, inH = curH;
+         runPass(mGz64Programs[1], outW, outH, [&](GLuint program) {
+diff --git a/src/fast/interpreter.cpp b/src/fast/interpreter.cpp
+index d8a6710..fb6c8c9 100644
+--- a/src/fast/interpreter.cpp
++++ b/src/fast/interpreter.cpp
+@@ -84,6 +84,7 @@ static constexpr int kGz64FilterMode = 100;
+ static bool sGz64Fxaa = false;
+ static bool sGz64Fsr = false;
+ static float sGz64FsrSharpness = 0.2f;
++static bool sGz64Effects = false;
+ 
+ // G-Zero 64: xBRZ upscaling of the game's own decoded textures (port/gz64_xbrz.cpp). The factor
+ // (0 = off, 2-4) is latched in StartFrame, which empties the texture cache when it changes so every
+@@ -7813,7 +7814,12 @@ void Interpreter::StartFrame() {
+     sGz64Fxaa = CVarGetInteger("gGZ64.Fxaa", 0) != 0;
+     sGz64Fsr = CVarGetInteger("gGZ64.Fsr", 0) != 0;
+     sGz64FsrSharpness = CVarGetFloat("gGZ64.FsrSharpness", 0.2f);
+-    if (mPostShaderCache == 0 && (sGz64Fxaa || sGz64Fsr)) {
++    // Picture effects (Gz64ApplyFilters reads their strengths itself).
++    sGz64Effects = CVarGetFloat("gGZ64.Bloom", 0.0f) > 0.0f || CVarGetFloat("gGZ64.Hdr", 0.0f) > 0.0f ||
++                   CVarGetFloat("gGZ64.Vibrance", 0.0f) > 0.0f || CVarGetInteger("gGZ64.Style", 0) != 0 ||
++                   CVarGetFloat("gGZ64.Vignette", 0.0f) > 0.0f || CVarGetFloat("gGZ64.SpeedBlur", 0.0f) > 0.0f ||
++                   CVarGetFloat("gGZ64.Cas", 0.0f) > 0.0f;
++    if (mPostShaderCache == 0 && (sGz64Fxaa || sGz64Fsr || sGz64Effects)) {
+         mPostShaderCache = kGz64FilterMode;
+     }
+     const int xbrzFactor = std::clamp(CVarGetInteger("gGZ64.Xbrz", 0), 0, 4);

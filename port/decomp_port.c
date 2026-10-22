@@ -1644,3 +1644,25 @@ void gdx_discord_snapshot(GdxDiscordSnapshot* out) {
     out->playerPosition = gRacers[0].position;
     out->playerFinished = (gRacers[0].stateFlags & RACER_STATE_FINISHED) != 0;
 }
+
+/* G-Zero 64: how strong the radial speed blur is (0..1), read by the renderer once per frame
+ * (android/patches/libultraship/0008-gz64-effects.patch). Full from about 1500 km/h, stronger
+ * while boosting; none outside a single-player race, in replays/demos, paused or after the
+ * finish line. */
+float gz64_speed_blur_amount(void) {
+    extern int gdx_input_in_gameplay(void);
+    extern s32 gNumPlayers;
+    extern s8 gGamePaused;
+    extern s8 gTitleDemoState;
+    const Racer* racer = &gRacers[0];
+    float amount;
+    if (!gdx_input_in_gameplay() || gNumPlayers != 1 || gGamePaused != 0 ||
+        gTitleDemoState != TITLE_DEMO_INACTIVE || (racer->stateFlags & RACER_STATE_FINISHED) != 0) {
+        return 0.0f;
+    }
+    amount = (racer->speed * 21.6f - 700.0f) / 800.0f;
+    if (racer->boostTimer > 0) {
+        amount += 0.35f;
+    }
+    return amount < 0.0f ? 0.0f : (amount > 1.0f ? 1.0f : amount);
+}
