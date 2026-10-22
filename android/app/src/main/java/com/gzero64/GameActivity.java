@@ -58,6 +58,8 @@ public final class GameActivity extends SDLActivity {
     private android.widget.ProgressBar installBar;
     private android.widget.TextView installPercent;
     private long installShownAt;
+    private int installDoneFrames = -1; // frames drawn when setup finished
+    private float installShown;         // the bar never goes back
 
     /** Covers the game's setup screen with the launcher's look and an "Installing..." bar. */
     private void showInstallScreen() {
@@ -84,6 +86,7 @@ public final class GameActivity extends SDLActivity {
         title.setTextSize(22);
         title.setTypeface(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD_ITALIC));
         title.setPadding(0, metrics.heightPixels / 30, 0, metrics.heightPixels / 60);
+        title.setGravity(android.view.Gravity.CENTER);
         column.addView(title);
         installBar = new android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         installBar.setMax(1000);
@@ -96,6 +99,7 @@ public final class GameActivity extends SDLActivity {
         installPercent.setTextSize(14);
         installPercent.setText(R.string.install_note);
         installPercent.setPadding(0, metrics.heightPixels / 60, 0, 0);
+        installPercent.setGravity(android.view.Gravity.CENTER);
         column.addView(installPercent);
         screen.addView(column, new android.widget.FrameLayout.LayoutParams(-1, -1));
 
@@ -120,15 +124,26 @@ public final class GameActivity extends SDLActivity {
             long shown = android.os.SystemClock.elapsedRealtime() - installShownAt;
             // 1: the game needs files the launcher did not provide; 3: failed (the game's screen
             // offers Retry); 4: done. Otherwise keep covering it until setup starts.
-            if (state == 1 || state == 3 || state == 4 || (state == 0 && shown > 60000)) {
+            int frames = 0;
+            try {
+                frames = GameBridge.nativeFrames();
+            } catch (UnsatisfiedLinkError ignored) {
+            }
+            // Done: keep covering the setup screen's last frame until the game itself has drawn a
+            // second's worth of frames (loading the archives takes a moment after setup).
+            if (state == 4 && installDoneFrames < 0) installDoneFrames = frames;
+            boolean gameRunning = installDoneFrames >= 0 && frames - installDoneFrames > 60;
+            if (state == 1 || state == 3 || gameRunning || (state == 0 && shown > 60000)
+                    || (state == 4 && shown > 120000)) {
                 mLayout.removeView(installScreen);
                 installScreen = null;
                 return;
             }
-            if (state == 2) {
+            if (state == 2 || state == 4) {
+                installShown = Math.max(installShown, state == 4 ? 1f : progress);
                 installBar.setIndeterminate(false);
-                installBar.setProgress(Math.round(progress * 1000));
-                installPercent.setText(getString(R.string.install_percent, Math.round(progress * 100)));
+                installBar.setProgress(Math.round(installShown * 1000));
+                installPercent.setText(getString(R.string.install_percent, Math.round(installShown * 100)));
             }
             installScreen.postDelayed(this, 250);
         }
