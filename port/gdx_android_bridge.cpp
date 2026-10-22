@@ -299,3 +299,15 @@ extern "C" JNIEXPORT void JNICALL Java_com_gzero64_GameBridge_nativeSetTouch(JNI
     sTouchButtons = static_cast<uint32_t>(buttons) & 0xFFFFu;
     sTouchStick = (stickX & 0xFF) | ((stickY & 0xFF) << 8);
 }
+
+// First-time setup, for the app's own install screen (GameActivity).
+extern "C" int gz64_setup_state(void);
+extern "C" float gz64_setup_progress(void);
+
+extern "C" JNIEXPORT jint JNICALL Java_com_gzero64_GameBridge_nativeSetupState(JNIEnv*, jclass) {
+    return gz64_setup_state();
+}
+
+extern "C" JNIEXPORT jfloat JNICALL Java_com_gzero64_GameBridge_nativeSetupProgress(JNIEnv*, jclass) {
+    return gz64_setup_progress();
+}

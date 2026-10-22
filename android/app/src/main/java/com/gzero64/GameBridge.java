@@ -31,6 +31,12 @@ final class GameBridge {
     /** Touch controls: N64 buttons for port 1 and the stick (-80..80, up positive). */
     static native void nativeSetTouch(int buttons, int stickX, int stickY);
 
+    /** First-time setup: 0 none, 1 waiting for files, 2 installing, 3 failed, 4 done. */
+    static native int nativeSetupState();
+
+    /** First-time setup progress, 0..1. */
+    static native float nativeSetupProgress();
+
     static void setInt(String name, int value) {
         nativeSet(name, false, value);
     }

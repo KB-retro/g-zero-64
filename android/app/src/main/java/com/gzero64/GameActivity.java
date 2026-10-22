@@ -47,11 +47,94 @@ public final class GameActivity extends SDLActivity {
             mLayout.addView(touchControls, new android.view.ViewGroup.LayoutParams(
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT));
             setFpsOverlayVisible(getSharedPreferences("game", MODE_PRIVATE).getBoolean("fps", false));
+            if (!new File(appDir, "fzerox.o2r").isFile()) showInstallScreen();
         }
         restoreFullscreen();
     }
 
     TouchControlsView touchControls() { return touchControls; }
+
+    // ── First-time install screen ───────────────────────────────────────────────────────────────
+
+    private View installScreen;
+    private android.widget.ProgressBar installBar;
+    private android.widget.TextView installPercent;
+    private long installShownAt;
+
+    /** Covers the game's setup screen with the launcher's look and an "Installing..." bar. */
+    private void showInstallScreen() {
+        android.widget.FrameLayout screen = new android.widget.FrameLayout(this);
+        screen.setBackgroundColor(android.graphics.Color.BLACK);
+        screen.setClickable(true); // nothing reaches the setup screen underneath
+        android.widget.ImageView backdrop = new android.widget.ImageView(this);
+        backdrop.setImageResource(R.drawable.launcher_backdrop);
+        backdrop.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        backdrop.setColorFilter(0x99000000);
+        screen.addView(backdrop, new android.widget.FrameLayout.LayoutParams(-1, -1));
+
+        android.widget.LinearLayout column = new android.widget.LinearLayout(this);
+        column.setOrientation(android.widget.LinearLayout.VERTICAL);
+        column.setGravity(android.view.Gravity.CENTER);
+        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+        android.widget.ImageView logo = new android.widget.ImageView(this);
+        logo.setImageResource(R.drawable.launcher_logo);
+        logo.setAdjustViewBounds(true);
+        column.addView(logo, new android.widget.LinearLayout.LayoutParams(-2, metrics.heightPixels * 30 / 100));
+        android.widget.TextView title = new android.widget.TextView(this);
+        title.setText(R.string.install_title);
+        title.setTextColor(android.graphics.Color.WHITE);
+        title.setTextSize(22);
+        title.setTypeface(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD_ITALIC));
+        title.setPadding(0, metrics.heightPixels / 30, 0, metrics.heightPixels / 60);
+        column.addView(title);
+        installBar = new android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        installBar.setMax(1000);
+        installBar.setIndeterminate(true);
+        installBar.setProgressTintList(android.content.res.ColorStateList.valueOf(0xFF55BCD8));
+        installBar.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(0xFF55BCD8));
+        column.addView(installBar, new android.widget.LinearLayout.LayoutParams(metrics.widthPixels * 55 / 100, -2));
+        installPercent = new android.widget.TextView(this);
+        installPercent.setTextColor(0xFFB8E9F5);
+        installPercent.setTextSize(14);
+        installPercent.setText(R.string.install_note);
+        installPercent.setPadding(0, metrics.heightPixels / 60, 0, 0);
+        column.addView(installPercent);
+        screen.addView(column, new android.widget.FrameLayout.LayoutParams(-1, -1));
+
+        installScreen = screen;
+        installShownAt = android.os.SystemClock.elapsedRealtime();
+        mLayout.addView(screen, new android.view.ViewGroup.LayoutParams(-1, -1));
+        screen.post(installUpdate);
+    }
+
+    private final Runnable installUpdate = new Runnable() {
+        @Override public void run() {
+            if (installScreen == null) return;
+            int state;
+            float progress;
+            try {
+                state = GameBridge.nativeSetupState();
+                progress = GameBridge.nativeSetupProgress();
+            } catch (UnsatisfiedLinkError error) {
+                state = 0;
+                progress = 0;
+            }
+            long shown = android.os.SystemClock.elapsedRealtime() - installShownAt;
+            // 1: the game needs files the launcher did not provide; 3: failed (the game's screen
+            // offers Retry); 4: done. Otherwise keep covering it until setup starts.
+            if (state == 1 || state == 3 || state == 4 || (state == 0 && shown > 60000)) {
+                mLayout.removeView(installScreen);
+                installScreen = null;
+                return;
+            }
+            if (state == 2) {
+                installBar.setIndeterminate(false);
+                installBar.setProgress(Math.round(progress * 1000));
+                installPercent.setText(getString(R.string.install_percent, Math.round(progress * 100)));
+            }
+            installScreen.postDelayed(this, 250);
+        }
+    };
 
     // ── FPS counter ─────────────────────────────────────────────────────────────────────────────
 

@@ -28,6 +28,8 @@
 #include <imgui.h>
 
 #include <filesystem>
+#include <algorithm>
+#include <atomic>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -41,6 +43,14 @@ namespace {
 // The installed game archive name (matches gdx_extract_launch.cpp's kArchiveName). Kept as a local
 // literal rather than exported: it is the SoH/Starship game-named-archive convention and is stable.
 constexpr const char* kGameArchiveName = "fzerox.o2r";
+
+#ifdef __ANDROID__
+// G-Zero 64: the Android app covers this screen with its own install screen (GameActivity), fed by
+// gz64_setup_state/progress, and setup starts by itself once the launcher's imported files check
+// out. 0 = no setup, 1 = waiting for files, 2 = installing, 3 = failed, 4 = done.
+std::atomic<int> sGz64SetupState{ 0 };
+std::atomic<float> sGz64SetupProgress{ 0.0f };
+#endif
 
 enum class Phase {
     Acquire,       // Waiting for the three inputs to be provided + validated.
@@ -441,8 +451,52 @@ class SetupScreen {
         }
     }
 
+#ifdef __ANDROID__
+    bool mAutoStarted = false;
+
+    void PublishAndroidState() {
+        int state = 1;
+        float progress = 0.0f;
+        switch (mPhase) {
+            case Phase::Acquire:
+                state = 1;
+                break;
+            case Phase::Extracting: {
+                state = 2;
+                // Cart extraction is most of the work; validation and the IPL archive the tail.
+                const int total =
+                    (mSubStage == 2) ? GdxExtractExpectedIplEntryCount() : GdxExtractExpectedCartEntryCount();
+                const float part = total > 0 ? std::min(1.0f, static_cast<float>(mEntriesSeen) / total) : 0.0f;
+                progress = mSubStage == 0 ? 0.85f * part : mSubStage == 1 ? 0.88f : 0.9f + 0.1f * part;
+                break;
+            }
+            case Phase::ExtractFailed:
+                state = 3;
+                break;
+            case Phase::Done:
+                state = 4;
+                progress = 1.0f;
+                break;
+        }
+        sGz64SetupState = state;
+        sGz64SetupProgress = progress;
+    }
+#endif
+
     // Per-frame state machine (logic only; rendering is in DrawUI).
     void Tick() {
+#ifdef __ANDROID__
+        // The launcher already imported and checked the three files: no confirmation screen.
+        if (mPhase == Phase::Acquire && !mAutoStarted && AllRowsOk()) {
+            mAutoStarted = true;
+            ConfirmAndStartExtraction();
+        }
+        TickPhase();
+        PublishAndroidState();
+    }
+
+    void TickPhase() {
+#endif
         switch (mPhase) {
             case Phase::Acquire:
                 // Detection and validation are automatic, but installation is not. The user must see
@@ -726,3 +780,13 @@ bool GdxFirstBootSetupRun(const std::string& dataDir, const std::string& exeDir,
 }
 
 } // namespace gdx
+
+#ifdef __ANDROID__
+extern "C" int gz64_setup_state(void) {
+    return gdx::sGz64SetupState.load();
+}
+
+extern "C" float gz64_setup_progress(void) {
+    return gdx::sGz64SetupProgress.load();
+}
+#endif

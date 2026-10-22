@@ -661,6 +661,20 @@ final class QuickMenuDialog {
         }
         if (uris.isEmpty()) return;
         if (current != null) current.footer.setText(R.string.quick_installing);
+        // A visible copy: big packs (.htc) take a while, and the menu itself shows nothing meanwhile.
+        final Handler main = new Handler(Looper.getMainLooper());
+        final android.widget.ProgressBar bar =
+                new android.widget.ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(1000);
+        final TextView status = new TextView(activity);
+        status.setPadding(0, 0, 0, 16);
+        LinearLayout box = new LinearLayout(activity);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(48, 24, 48, 8);
+        box.addView(status);
+        box.addView(bar);
+        final AlertDialog progress = new AlertDialog.Builder(activity).setTitle(R.string.quick_installing)
+                .setView(box).setCancelable(false).show();
         worker.execute(new Runnable() {
             @Override public void run() {
                 int installed = 0, skipped = 0;
@@ -684,11 +698,33 @@ final class QuickMenuDialog {
                         skipped++;
                         continue;
                     }
+                    final long size = fileSize(activity, uri);
+                    final String shown = name;
+                    main.post(new Runnable() {
+                        @Override public void run() {
+                            status.setText(shown);
+                            bar.setIndeterminate(size <= 0);
+                            bar.setProgress(0);
+                        }
+                    });
                     try (InputStream in = activity.getContentResolver().openInputStream(uri);
                          OutputStream out = new FileOutputStream(new File(dir, name))) {
                         if (in == null) throw new IOException("no stream");
                         byte[] buffer = new byte[1 << 16];
-                        for (int n; (n = in.read(buffer)) > 0; ) out.write(buffer, 0, n);
+                        long copied = 0;
+                        long lastUpdate = 0;
+                        for (int n; (n = in.read(buffer)) > 0; ) {
+                            out.write(buffer, 0, n);
+                            copied += n;
+                            long now = android.os.SystemClock.elapsedRealtime();
+                            if (size > 0 && now - lastUpdate > 100) {
+                                lastUpdate = now;
+                                final int permille = (int) Math.min(1000, copied * 1000 / size);
+                                main.post(new Runnable() {
+                                    @Override public void run() { bar.setProgress(permille); }
+                                });
+                            }
+                        }
                         installed++;
                         names.append("\n• ").append(name);
                     } catch (IOException exception) {
@@ -720,9 +756,10 @@ final class QuickMenuDialog {
                     }
                 });
                 final String report = message + names;
-                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                main.post(new Runnable() {
                     @Override public void run() {
                         if (activity.isFinishing() || activity.isDestroyed()) return;
+                        progress.dismiss();
                         // A clear answer: what was installed and what was not.
                         new AlertDialog.Builder(activity).setTitle(R.string.quick_install_mods_done)
                                 .setMessage(report).setPositiveButton(R.string.action_close, null).show();
@@ -738,6 +775,15 @@ final class QuickMenuDialog {
         } catch (UnsatisfiedLinkError error) {
             return "";
         }
+    }
+
+    private static long fileSize(Context context, Uri uri) {
+        try (Cursor cursor = context.getContentResolver().query(uri,
+                new String[] {OpenableColumns.SIZE}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst() && !cursor.isNull(0)) return cursor.getLong(0);
+        } catch (RuntimeException ignored) {
+        }
+        return -1;
     }
 
     private static String displayName(Context context, Uri uri) {

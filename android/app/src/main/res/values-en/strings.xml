@@ -134,6 +134,9 @@
     </plurals>
     <string name="quick_deleted">Deleted: %d.</string>
     <string name="quick_install_mods_done">Pack installation</string>
+    <string name="install_title">Installing…</string>
+    <string name="install_note">Only the first time. It can take a few minutes.</string>
+    <string name="install_percent">%d %%</string>
     <string name="quick_cancel">Cancel</string>
     <string-array name="quick_formats">
         <item>Automatic</item>
