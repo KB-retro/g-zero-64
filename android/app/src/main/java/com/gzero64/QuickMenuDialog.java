@@ -526,6 +526,14 @@ final class QuickMenuDialog {
             if (child.getTag() instanceof Integer) child.setSelected((Integer) child.getTag() == page);
         }
         pageTitle.setText(pageNames.get(page));
+        // Removing the focused row lets Android hand the focus to the first focusable view, a page
+        // in the list, which would then open that page. Park it here while the rows are rebuilt.
+        View focused = dialog.getCurrentFocus();
+        if (focused != null && focused != parking && isInRows(focused)) {
+            View keep = lastFocused;
+            parking.requestFocus();
+            lastFocused = keep;
+        }
         rows.removeAllViews();
         footer.setText("");
         JSONObject data = pages.get(page);
@@ -559,6 +567,14 @@ final class QuickMenuDialog {
                 }
             }
         }
+    }
+
+    private boolean isInRows(View view) {
+        while (view != null) {
+            if (view == rows) return true;
+            view = view.getParent() instanceof View ? (View) view.getParent() : null;
+        }
+        return false;
     }
 
     /** Position of a row among the page's focusable rows, to restore the focus after a reload. */

@@ -38,7 +38,7 @@ index 410aa23..7bd0d66 100644
                                         float sharpness) {
          return 0;
 diff --git a/src/fast/backends/gfx_opengl.cpp b/src/fast/backends/gfx_opengl.cpp
-index 6a86ec1..cefd559 100644
+index 6a86ec1..f674013 100644
 --- a/src/fast/backends/gfx_opengl.cpp
 +++ b/src/fast/backends/gfx_opengl.cpp
 @@ -1821,9 +1821,10 @@ static const char* sGz64BloomDownFs = GZ64_FS_PRELUDE
@@ -73,7 +73,7 @@ index 6a86ec1..cefd559 100644
      "vec3 Up(sampler2D t, vec2 size, vec2 uv) {\n"
      "    vec2 q = uv * size - 0.5;\n"
      "    vec2 f = fract(q);\n"
-@@ -1886,17 +1897,21 @@ static const char* sGz64EffectsFs = GZ64_FS_PRELUDE
+@@ -1886,19 +1897,23 @@ static const char* sGz64EffectsFs = GZ64_FS_PRELUDE
      "void main() {\n"
      "    ivec2 p = ivec2(gl_FragCoord.xy);\n"
      "    vec2 uv = gl_FragCoord.xy / uInSize;\n"
@@ -93,12 +93,16 @@ index 6a86ec1..cefd559 100644
      "        float s = uSpeed * m;\n"
      "        if (s > 0.001) {\n"
      "            vec3 acc = c;\n"
-     "            for (int i = 1; i < 8; i++) {\n"
+-    "            for (int i = 1; i < 8; i++) {\n"
 -    "                acc += F(ivec2((uv - d * (float(i) * 0.014 * s)) * uInSize));\n"
-+    "                acc += S(uv - d * (float(i) * 0.014 * s));\n"
++    "            for (int i = 1; i < 6; i++) {\n"
++    "                acc += S(uv - d * (float(i) * 0.019 * s));\n"
      "            }\n"
-     "            c = acc / 8.0;\n"
+-    "            c = acc / 8.0;\n"
++    "            c = acc / 6.0;\n"
      "        }\n"
+     "    }\n"
+     "    if (uDofAmt > 0.0) {\n"
 @@ -1912,6 +1927,7 @@ static const char* sGz64EffectsFs = GZ64_FS_PRELUDE
      "    }\n"
      "    if (uBloomAmt > 0.0) {\n"
@@ -116,6 +120,26 @@ index 6a86ec1..cefd559 100644
      "}\n";
  
  static const char* sGz64CasFs = GZ64_FS_PRELUDE
+@@ -2013,15 +2029,15 @@ static const char* sGz64RaysFs = GZ64_FS_PRELUDE
+     "}\n"
+     "void main() {\n"
+     "    vec2 uv = gl_FragCoord.xy / uOutSize;\n"
+-    "    vec2 step = (uLight - uv) / 24.0;\n"
++    "    vec2 step = (uLight - uv) / 12.0;\n"
+     "    vec3 sum = vec3(0.0);\n"
+     "    float weight = 1.0;\n"
+-    "    for (int i = 0; i < 24; i++) {\n"
++    "    for (int i = 0; i < 12; i++) {\n"
+     "        sum += Sky(uv) * weight;\n"
+-    "        weight *= 0.93;\n"
++    "        weight *= 0.865;\n"
+     "        uv += step;\n"
+     "    }\n"
+-    "    gdxFragColor = vec4(sum / 24.0, 1.0);\n"
++    "    gdxFragColor = vec4(sum / 12.0, 1.0);\n"
+     "}\n";
+ 
+ static const char* sGz64DofDownFs = GZ64_FS_PRELUDE
 @@ -2041,6 +2057,45 @@ static const char* sGz64DofDownFs = GZ64_FS_PRELUDE
  extern "C" int gz64_dof_active(void);
  
@@ -286,27 +310,29 @@ index 6a86ec1..cefd559 100644
      return (uintptr_t)curTex;
  }
 diff --git a/src/fast/interpreter.cpp b/src/fast/interpreter.cpp
-index c8fb828..7d81cab 100644
+index c8fb828..29bd447 100644
 --- a/src/fast/interpreter.cpp
 +++ b/src/fast/interpreter.cpp
-@@ -85,6 +85,12 @@ static bool sGz64Fxaa = false;
+@@ -85,6 +85,14 @@ static bool sGz64Fxaa = false;
  static bool sGz64Fsr = false;
  static float sGz64FsrSharpness = 0.2f;
  static bool sGz64Effects = false;
 +// The HUD is drawn last and without depth: each depth-less draw that follows depth-tested ones may
-+// be where it starts, so the scene is copied there (Gz64SnapshotScene, a few times per frame at
-+// most) and the effects can tell the two apart. Reset in StartFrame.
++// be where it starts, so the scene is copied there (Gz64SnapshotScene, twice per frame at most: each
++// copy splits the frame on tiled mobile GPUs) and the effects can tell the two apart. Only bloom,
++// light rays, AO and speed blur need it. Reset in StartFrame.
++static bool sGz64NeedScene = false;
 +static bool sGz64SawDepth = false;
 +static int sGz64Snapshots = 0;
 +extern bool gGz64SceneValid;
  // The framebuffer whose depth the G-Zero 64 effects read (gfx_opengl.cpp).
  extern int gGz64DepthSourceFb;
  
-@@ -3390,6 +3396,16 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
+@@ -3390,6 +3398,16 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
          depth_mask = false;
          mGeometryDiagnostics.depthBypassTriangles++;
      }
-+    if (sGz64Effects && mRendersToFb && !mFbActive && sGz64Snapshots < 6) {
++    if (sGz64NeedScene && mRendersToFb && !mFbActive && sGz64Snapshots < 2) {
 +        if (depth_test) {
 +            sGz64SawDepth = true;
 +        } else if (sGz64SawDepth) {
@@ -319,7 +345,7 @@ index c8fb828..7d81cab 100644
      uint8_t depth_test_and_mask = (depth_test ? 1 : 0) | (depth_mask ? 2 : 0);
      if (depth_test_and_mask != mRenderingState.depth_test_and_mask) {
          Flush();
-@@ -7816,6 +7832,9 @@ void Interpreter::StartFrame() {
+@@ -7816,12 +7834,17 @@ void Interpreter::StartFrame() {
      sGz64Fxaa = CVarGetInteger("gGZ64.Fxaa", 0) != 0;
      sGz64Fsr = CVarGetInteger("gGZ64.Fsr", 0) != 0;
      sGz64FsrSharpness = CVarGetFloat("gGZ64.FsrSharpness", 0.2f);
@@ -329,3 +355,11 @@ index c8fb828..7d81cab 100644
      // Picture effects (Gz64ApplyFilters reads their strengths itself).
      sGz64Effects = CVarGetFloat("gGZ64.Bloom", 0.0f) > 0.0f || CVarGetFloat("gGZ64.Hdr", 0.0f) > 0.0f ||
                     CVarGetFloat("gGZ64.Vibrance", 0.0f) > 0.0f || CVarGetInteger("gGZ64.Style", 0) != 0 ||
+                    CVarGetFloat("gGZ64.Vignette", 0.0f) > 0.0f || CVarGetFloat("gGZ64.SpeedBlur", 0.0f) > 0.0f ||
+                    CVarGetFloat("gGZ64.Cas", 0.0f) > 0.0f || CVarGetFloat("gGZ64.Ao", 0.0f) > 0.0f ||
+                    CVarGetFloat("gGZ64.Rays", 0.0f) > 0.0f || CVarGetFloat("gGZ64.Dof", 0.0f) > 0.0f;
++    sGz64NeedScene = CVarGetFloat("gGZ64.Bloom", 0.0f) > 0.0f || CVarGetFloat("gGZ64.Rays", 0.0f) > 0.0f ||
++                     CVarGetFloat("gGZ64.Ao", 0.0f) > 0.0f || CVarGetFloat("gGZ64.SpeedBlur", 0.0f) > 0.0f;
+     if (mPostShaderCache == 0 && (sGz64Fxaa || sGz64Fsr || sGz64Effects)) {
+         mPostShaderCache = kGz64FilterMode;
+     }
