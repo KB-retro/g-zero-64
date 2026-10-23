@@ -326,7 +326,17 @@ struct Pack {
     uint32_t layout = 0;
     std::string payloadPath;
     std::unordered_map<uint64_t, Entry> entries;
+    // Texel CRC (low 32 bits of the key) -> the one key that has it, or 0 when several do.
+    std::unordered_map<uint32_t, uint64_t> byCrc;
 };
+
+void IndexByCrc(Pack& pack) {
+    pack.byCrc.reserve(pack.entries.size());
+    for (const auto& [key, e] : pack.entries) {
+        auto [it, added] = pack.byCrc.emplace(static_cast<uint32_t>(key), key);
+        if (!added && it->second != key) it->second = 0;
+    }
+}
 
 enum State { kIdle, kLoading, kReady, kNoPack, kFailed };
 
@@ -334,7 +344,7 @@ std::mutex gMutex;
 std::shared_ptr<const Pack> gPack;
 std::atomic<int> gState{ kIdle };
 std::atomic<uint32_t> gGeneration{ 1 };
-std::atomic<uint32_t> gHits{ 0 }, gMisses{ 0 }, gShapeMismatch{ 0 };
+std::atomic<uint32_t> gHits{ 0 }, gMisses{ 0 }, gShapeMismatch{ 0 }, gUsed{ 0 };
 std::string gStatusName;
 int gEnabled = -1;
 FILE* gPayload = nullptr; // render thread only
@@ -509,6 +519,7 @@ void Load(fs::path source) {
     }
     {
         std::lock_guard<std::mutex> lock(gMutex);
+        IndexByCrc(*pack);
         gPack = pack;
     }
     gState = kReady;
@@ -556,7 +567,7 @@ void Unload() {
     gMatches.clear();
     gDecoded.clear();
     gDecodedBytes = 0;
-    gHits = gMisses = gShapeMismatch = 0;
+    gHits = gMisses = gShapeMismatch = gUsed = 0;
     gState = kIdle;
 }
 
@@ -725,6 +736,9 @@ extern "C" const uint8_t* gz64_htc_find(const Gz64HtcQuery* q, uint32_t* outWidt
         hitKey = known->second;
     } else {
         hit = Search(*q, *pack, hitKey);
+        if (hit != nullptr) {
+            ++gUsed;
+        }
         if (gMatches.size() >= kMatchesLimit) {
             gMatches.clear();
         }
@@ -757,29 +771,42 @@ const Entry* Search(const Gz64HtcQuery& query, const Pack& pack, uint64_t& hitKe
     const uint32_t maskH = q->maskt != 0 ? (1u << q->maskt) : tileH;
     const uint32_t ruleW = ((q->cms & 2) && tileW <= 256) ? std::min(maskW, tileW) : maskW;
     const uint32_t ruleH = (((q->cmt & 2) && tileH <= 256) || maskH > 256) ? std::min(maskH, tileH) : maskH;
-    const uint32_t widths[] = { q->width, ruleW, tileW };
-    const uint32_t heights[] = { q->height, ruleH, tileH };
+    // Also the shapes the load itself implies: its row length in texels and its row count.
+    const uint32_t lineW = (q->lineBytes << 1) >> q->siz;
+    const uint32_t fullW = (q->fullLineBytes << 1) >> q->siz;
+    const uint32_t loadH = q->lineBytes != 0 ? q->sizeBytes / q->lineBytes : 0;
+    const uint32_t widths[] = { q->width, ruleW, tileW, maskW, lineW, fullW };
+    const uint32_t heights[] = { q->height, ruleH, tileH, maskH, loadH };
     const uint32_t strides[] = { q->fullLineBytes, q->lineBytes, q->tileLineBytes, q->tileLineBytes * 2 };
     const uint32_t sizes[] = { q->siz, 2u };
+    const uint64_t available = std::max<uint64_t>(
+        q->sizeBytes, q->height != 0 ? static_cast<uint64_t>(q->height - 1) * q->fullLineBytes + q->lineBytes : 0);
 
     const Entry* hit = nullptr;
     uint64_t hitKey = 0;
     uint64_t firstKey = 0;
     const Pack* packPtr = &pack;
-    uint64_t tried[96];
+    uint64_t tried[256];
     uint32_t triedCount = 0;
     for (uint32_t size : sizes) {
         if (size != q->siz && q->siz >= 2) {
             continue;
         }
-        for (uint32_t w : widths) {
-            for (uint32_t h : heights) {
+        for (uint32_t wi = 0; wi < 6; ++wi) {
+            const uint32_t w = widths[wi];
+            for (uint32_t hi = 0; hi < 5; ++hi) {
+                const uint32_t h = heights[hi];
                 for (uint32_t stride : strides) {
+                    // The extra shapes (from index 3 on) only inside the bytes the renderer has.
+                    if ((wi >= 3 || hi >= 3) && (w == 0 || h == 0 ||
+                        static_cast<uint64_t>(stride) * (h - 1) + (((w << size) + 1) >> 1) > available)) {
+                        continue;
+                    }
                     const uint64_t key = Checksum(*q, w, h, size, stride, paletteArg);
                     if (key == 0 || std::find(tried, tried + triedCount, key) != tried + triedCount) {
                         continue;
                     }
-                    if (triedCount < 96) {
+                    if (triedCount < 256) {
                         tried[triedCount++] = key;
                     }
                     if (firstKey == 0) {
@@ -788,6 +815,14 @@ const Entry* Search(const Gz64HtcQuery& query, const Pack& pack, uint64_t& hitKe
                     auto it = packPtr->entries.find(key);
                     if (it == packPtr->entries.end() && (key >> 32) != 0) {
                         it = packPtr->entries.find(key & 0xFFFFFFFFull);
+                    }
+                    if (it == packPtr->entries.end()) {
+                        // Same texels, other palette CRC: accepted only when a single pack entry has
+                        // those texels, since recoloured copies (palette swaps) share them.
+                        auto crc = packPtr->byCrc.find(static_cast<uint32_t>(key));
+                        if (crc != packPtr->byCrc.end() && crc->second != 0) {
+                            it = packPtr->entries.find(crc->second);
+                        }
                     }
                     if (it == packPtr->entries.end()) {
                         continue;
@@ -923,8 +958,8 @@ const char* Gz64HtcStatus() {
                 std::lock_guard<std::mutex> lock(gMutex);
                 count = gPack != nullptr ? gPack->entries.size() : 0;
             }
-            std::snprintf(buffer, sizeof(buffer), GdxTr("%s: %zu HD | found %u, not in pack %u, wrong shape %u"),
-                          gStatusName.c_str(), count, gHits.load(), gMisses.load(), gShapeMismatch.load());
+            std::snprintf(buffer, sizeof(buffer), GdxTr("%s: %zu HD in the pack | replaced %u, without HD %u"),
+                          gStatusName.c_str(), count, gUsed.load(), gMisses.load());
             break;
         }
         case kNoPack:

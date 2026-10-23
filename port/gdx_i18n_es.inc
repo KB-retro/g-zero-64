@@ -395,7 +395,7 @@
     { "Retro - VHS", "Retro · VHS" },
     { "HD presets work on the full image; Retro ones on the console's own resolution. While one is on, FSR and FXAA are off.", "Los HD trabajan sobre la imagen completa; los Retro, a la resolución original de la consola. Con uno activo, FSR y FXAA se desactivan." },
     { "%s: preparing...", "%s: preparando..." },
-    { "%s: %zu HD | found %u, not in pack %u, wrong shape %u", "%s: %zu HD | encontradas %u, no están en el pack %u, forma distinta %u" },
+    { "%s: %zu HD in the pack | replaced %u, without HD %u", "%s: %zu HD en el pack | sustituidas %u, sin HD %u" },
     { "No .htc pack installed.", "No hay ningún pack .htc instalado." },
     { "%s: could not be read (see the log)", "%s: no se ha podido leer (mira el log)" },
     { "Jack Cup Clear", "Copa Jack superada" },
