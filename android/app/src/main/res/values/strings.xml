@@ -182,7 +182,7 @@
     <string name="quick_effect_dof">Profundidad de campo</string>
     <string name="quick_effect_dof_tip">Desenfoca lo que está lejos del centro. Solo en la demo de la pantalla de título y en el final del Grand Prix, nunca mientras juegas.</string>
     <string name="quick_racing_pad">Esquema del mando</string>
-    <string name="quick_racing_pad_tip">Carreras: stick o cruceta para girar, R2 acelerar, A turbo, gatillo izquierdo (L2) freno de aire, L1/R1 derrapes (Z/R), stick derecho cámaras; en los menús A acepta y B vuelve. En táctil, durante la carrera: flechas a los lados, derrapes encima y aceleración automática. Original: el mando N64 de G-Diffuser y el stick táctil.</string>
+    <string name="quick_racing_pad_tip">Carreras: stick o cruceta para girar, R2 acelerar, A turbo, gatillo izquierdo (L2) freno de aire, L1/R1 derrapes (Z/R), Y mirar atrás, X cambiar cámara; en los menús A acepta y B vuelve. En táctil, durante la carrera: flechas a los lados, derrapes encima y aceleración automática. Original: el mando N64 de G-Diffuser y el stick táctil.</string>
     <string-array name="quick_racing_pad_modes">
         <item>Original (N64)</item>
         <item>Carreras</item>

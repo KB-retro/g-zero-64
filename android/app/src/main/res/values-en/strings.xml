@@ -179,7 +179,7 @@
     <string name="quick_effect_dof">Depth of field</string>
     <string name="quick_effect_dof_tip">Blurs what is far from the centre. Only in the title screen demo and the Grand Prix ending, never while playing.</string>
     <string name="quick_racing_pad">Controller layout</string>
-    <string name="quick_racing_pad_tip">Racing: stick or D-pad to steer, R2 accelerates, A boosts, left trigger (L2) air brakes, L1/R1 drift (Z/R), right stick cameras; in menus A accepts and B goes back. On touch, while racing: side arrows, drifts above them and automatic gas. Original: G-Diffuser\'s N64 mapping and the touch stick.</string>
+    <string name="quick_racing_pad_tip">Racing: stick or D-pad to steer, R2 accelerates, A boosts, left trigger (L2) air brakes, L1/R1 drift (Z/R), Y looks back, X changes the camera; in menus A accepts and B goes back. On touch, while racing: side arrows, drifts above them and automatic gas. Original: G-Diffuser\'s N64 mapping and the touch stick.</string>
     <string-array name="quick_racing_pad_modes">
         <item>Original (N64)</item>
         <item>Racing</item>

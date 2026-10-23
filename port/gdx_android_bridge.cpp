@@ -318,8 +318,8 @@ extern "C" JNIEXPORT jfloat JNICALL Java_com_gzero64_GameBridge_nativeSetupProgr
 // ── Racing controller layout ────────────────────────────────────────────────────────────────────
 // gGZ64.RacingPad (default on): the first controller drives port 1 like a racing game instead of
 // through libultraship's N64 mapping. In a race: stick or D-pad steer, RT (or B) accelerates, A
-// (the bottom face button, whatever the layout) boosts, LT (or X) air brakes, LB / RB drift (Z /
-// R), right stick the C buttons (camera, rear view...), Start pauses. Outside races the face
+// (the bottom face button, whatever the layout) boosts, LT air brakes, LB / RB drift (Z / R), Y
+// (top) looks back, X (left) changes the camera, the right stick gives the C buttons, Start pauses. Outside races the face
 // buttons keep their menu meaning: A accepts, B goes back. Game thread, from input_bridge.c,
 // where libultraship reads the same controllers.
 extern "C" int gz64_in_race(void);
@@ -369,8 +369,9 @@ extern "C" int gdx_android_racing_pad(uint16_t* buttons, int8_t* stickX, int8_t*
     if (button(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)) n64 |= 0x0010;                                    // R
     if (button(SDL_CONTROLLER_BUTTON_START)) n64 |= 0x1000;                                            // Start
     if (button(SDL_CONTROLLER_BUTTON_LEFTSTICK)) n64 |= 0x0020;                                        // L
-    if (button(SDL_CONTROLLER_BUTTON_X) || axis(SDL_CONTROLLER_AXIS_TRIGGERLEFT) > 0.3f) n64 |= 0x0004; // C-Down
-    if (button(SDL_CONTROLLER_BUTTON_Y)) n64 |= 0x0008;                                                // C-Up
+    if (axis(SDL_CONTROLLER_AXIS_TRIGGERLEFT) > 0.3f) n64 |= 0x0004; // C-Down: air brake
+    if (button(SDL_CONTROLLER_BUTTON_Y)) n64 |= 0x0008;              // C-Up: rear view (top face button)
+    if (button(SDL_CONTROLLER_BUTTON_X)) n64 |= 0x0001;              // C-Right: camera (left face button)
     const float cx = axis(SDL_CONTROLLER_AXIS_RIGHTX), cy = axis(SDL_CONTROLLER_AXIS_RIGHTY);
     if (cx > 0.5f) n64 |= 0x0001; // C-Right: camera
     if (cx < -0.5f) n64 |= 0x0002; // C-Left
