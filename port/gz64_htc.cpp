@@ -370,7 +370,10 @@ fs::path FindPack() {
             }
         }
         if (!found.empty()) {
-            std::sort(found.begin(), found.end());
+            // The most recently installed one.
+            std::sort(found.begin(), found.end(), [&ec](const fs::path& a, const fs::path& b) {
+                return fs::last_write_time(a, ec) > fs::last_write_time(b, ec);
+            });
             return found.front();
         }
     }
@@ -573,6 +576,19 @@ void Unload() {
 
 void Refresh() {
     const int enabled = CVarGetInteger("gGZ64.HiresPack", 0) != 0 ? 1 : 0;
+    // Bumped by the quick menu when it installs an .htc: switch to it even if a pack is in use.
+    static int sSerial = -1;
+    const int serial = CVarGetInteger("gGZ64.HiresPackSerial", 0);
+    if (serial != sSerial) {
+        const bool first = sSerial == -1;
+        sSerial = serial;
+        if (!first && enabled == 1 && gEnabled == 1 && gState != kLoading) {
+            Unload();
+            ++gGeneration;
+            StartLoad();
+            return;
+        }
+    }
     if (enabled != gEnabled) {
         if (enabled == 0 && gEnabled == 1 && gState != kLoading) {
             Unload(); // also lets a deleted pack go

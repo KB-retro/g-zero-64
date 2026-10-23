@@ -190,4 +190,5 @@
         <item>Mostrar</item>
         <item>Quitar</item>
     </string-array>
+    <string name="achievement_unlocked">¡Logro desbloqueado!</string>
 </resources>

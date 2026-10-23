@@ -25,6 +25,8 @@
 #include "ship/window/Window.h"
 #include "ship/window/gui/Gui.h"
 
+#include "gdx_achievements.h"
+#include "gdx_i18n.h"
 #include "gdx_menu.h"
 
 namespace {
@@ -156,8 +158,21 @@ extern "C" int gdx_android_touch_state(uint16_t* buttons, int8_t* stickX, int8_t
     return mask != 0 || stick != 0;
 }
 
+// Achievements unlocked since Java last asked ("name\ndescription"), for the unlock pop-up.
+std::mutex sUnlockMutex;
+std::vector<std::string> sUnlocks;
+
 extern "C" void gdx_android_bridge_tick(void) {
     ++sFrames;
+    GdxAchievementInfo unlocked[8];
+    const size_t count = GdxAchievements_DrainNewlyUnlocked(unlocked, 8);
+    if (count > 0) {
+        std::lock_guard<std::mutex> lock(sUnlockMutex);
+        for (size_t i = 0; i < count; ++i) {
+            sUnlocks.push_back(std::string(unlocked[i].name != nullptr ? GdxTr(unlocked[i].name) : "") + "\n" +
+                               (unlocked[i].description != nullptr ? GdxTr(unlocked[i].description) : ""));
+        }
+    }
     std::vector<Request> writes;
     {
         std::lock_guard<std::mutex> lock(sMutex);
@@ -387,4 +402,19 @@ extern "C" int gz64_in_race(void);
 
 extern "C" JNIEXPORT jboolean JNICALL Java_com_gzero64_GameBridge_nativeInRace(JNIEnv*, jclass) {
     return gz64_in_race() != 0 ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL Java_com_gzero64_GameBridge_nativeTakeUnlocks(JNIEnv* env, jclass) {
+    std::vector<std::string> taken;
+    {
+        std::lock_guard<std::mutex> lock(sUnlockMutex);
+        taken.swap(sUnlocks);
+    }
+    jobjectArray out = env->NewObjectArray(static_cast<jsize>(taken.size()), env->FindClass("java/lang/String"), nullptr);
+    for (size_t i = 0; i < taken.size(); ++i) {
+        jstring text = env->NewStringUTF(taken[i].c_str());
+        env->SetObjectArrayElement(out, static_cast<jsize>(i), text);
+        env->DeleteLocalRef(text);
+    }
+    return out;
 }

@@ -42,6 +42,7 @@ public final class GameActivity extends SDLActivity {
             mLayout.addView(touchControls, new android.view.ViewGroup.LayoutParams(
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT));
             setFpsOverlayVisible(getSharedPreferences("game", MODE_PRIVATE).getBoolean("fps", false));
+            new AchievementToast(this, mLayout);
             if (!new File(appDir, "fzerox.o2r").isFile()) showInstallScreen();
         }
         restoreFullscreen();

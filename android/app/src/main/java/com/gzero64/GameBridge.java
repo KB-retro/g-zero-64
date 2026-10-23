@@ -40,6 +40,9 @@ final class GameBridge {
     /** A race is running (not paused, not a demo, not finished): the racing touch scheme applies. */
     static native boolean nativeInRace();
 
+    /** Achievements unlocked since the last call, each "name\ndescription"; empty if none. */
+    static native String[] nativeTakeUnlocks();
+
     static void setInt(String name, int value) {
         nativeSet(name, false, value);
     }

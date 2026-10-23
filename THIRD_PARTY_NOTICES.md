@@ -29,6 +29,8 @@ The Android build (G-Zero 64) also compiles xBRZ by Zenju (`port/third_party/xbr
 texture upscaler, which is licensed under the GNU General Public License v3
 (`LICENSES/GPL-3.0-xBRZ.txt`). Because of it, the Android APK as a whole is distributed under the
 terms of the GPL v3; its complete source is this repository. The desktop builds do not include it.
+The trophy of its achievement pop-up (`android/app/src/main/res/drawable/ic_trophy.xml`) is the
+Material Design icon "emoji_events" by Google, licensed under the Apache License 2.0.
 
 Montserrat and Inconsolata are distributed under the SIL Open Font License 1.1. Their license texts
 are included both under `LICENSES/` and beside the fonts in release packages.

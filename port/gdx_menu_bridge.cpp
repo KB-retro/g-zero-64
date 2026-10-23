@@ -532,8 +532,10 @@ std::string GdxMenu::BridgeExportJson() {
             if (page == section->second.sidebars.end()) {
                 continue;
             }
-            // Mouse controls and the Discord status have nothing to work with on Android.
-            if (sectionName == "Online" || (sectionName == "Enhancements" && pageName == "Mouse")) {
+            // Mouse controls and the Discord status have nothing to work with on Android, and of the
+            // Workshop only Mods is kept (at the end of Picture): its tools are for desktop modders.
+            if (sectionName == "Online" || (sectionName == "Enhancements" && pageName == "Mouse") ||
+                (sectionName == "Workshop" && pageName != "Mods")) {
                 continue;
             }
             // The input viewer overlay gives way to the touch controls, all Java (QuickMenuDialog).
@@ -561,14 +563,14 @@ std::string GdxMenu::BridgeExportJson() {
                     if (target != nullptr) {
                         AddRow(*FindPage(picture, target), row);
                     } else {
-                        AddRow(Page(Section(layout, sectionName), PageName(sectionName, pageName),
-                                    mods ? "mods" : ""),
+                        AddRow(mods ? Page(picture, pageName, "mods")
+                                    : Page(Section(layout, sectionName), PageName(sectionName, pageName), ""),
                                row);
                     }
                 }
             }
             if (mods) {
-                PackRows(Page(Section(layout, sectionName), pageName, "mods"));
+                PackRows(Page(picture, pageName, "mods"));
             }
             if (achievements) {
                 AchievementRows(Page(Section(layout, sectionName), pageName, "achievements"));

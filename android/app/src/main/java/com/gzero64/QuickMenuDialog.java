@@ -812,6 +812,7 @@ final class QuickMenuDialog {
         worker.execute(new Runnable() {
             @Override public void run() {
                 int installed = 0, skipped = 0;
+                boolean htcInstalled = false;
                 final StringBuilder names = new StringBuilder();
                 File appDir = RuntimeFiles.appDir(activity);
                 for (Uri uri : uris) {
@@ -860,10 +861,19 @@ final class QuickMenuDialog {
                             }
                         }
                         installed++;
+                        if (lower.endsWith(".htc")) htcInstalled = true;
                         names.append("\n• ").append(name);
                     } catch (IOException exception) {
                         Log.e("GZero64", "Cannot install " + name, exception);
                         skipped++;
+                    }
+                }
+                // An emulator HD pack is useless switched off: turn the option on and load the new pack.
+                if (htcInstalled) {
+                    try {
+                        GameBridge.setInt(HIRES_PACK, 1);
+                        GameBridge.setInt("gGZ64.HiresPackSerial", (int) (System.currentTimeMillis() / 1000));
+                    } catch (UnsatisfiedLinkError ignored) {
                     }
                 }
                 // The game thread may still be held by the picker's pause: retry for a few seconds.
@@ -878,10 +888,12 @@ final class QuickMenuDialog {
                 final String message = activity.getString(R.string.quick_installed, installed)
                         + (skipped > 0 ? "  " + activity.getString(R.string.quick_install_skipped, skipped) : "");
                 final String menuJson = readMenu();
+                final boolean htcOn = htcInstalled;
                 new Handler(Looper.getMainLooper()).post(new Runnable() {
                     @Override public void run() {
                         QuickMenuDialog menu = current;
                         if (menu == null || !menu.dialog.isShowing()) return;
+                        if (htcOn) menu.values.put(HIRES_PACK, 1f);
                         if (!menuJson.isEmpty()) {
                             menu.parse(menuJson);
                             menu.showPage(Math.min(menu.currentPage, menu.pages.size() - 1), 0);

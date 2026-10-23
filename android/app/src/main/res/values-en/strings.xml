@@ -187,4 +187,5 @@
         <item>Show</item>
         <item>Remove</item>
     </string-array>
+    <string name="achievement_unlocked">Achievement unlocked!</string>
 </resources>
