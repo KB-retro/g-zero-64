@@ -71,26 +71,8 @@ final class QuickMenuDialog {
     private static final String XBRZ = "gGZ64.Xbrz";
     private static final String HIRES_PACK = "gGZ64.HiresPack";
     private static final String RACING_PAD = "gGZ64.RacingPad";
-    // Picture effects (Effects page), applied by the renderer's G-Zero 64 pass.
-    private static final String[] EFFECTS = {
-        "gGZ64.Bloom", "gGZ64.Hdr", "gGZ64.Vibrance", "gGZ64.Style", "gGZ64.Vignette", "gGZ64.SpeedBlur", "gGZ64.Cas",
-        "gGZ64.Ao", "gGZ64.Rays", "gGZ64.Dof"
-    };
-    private static final int EFFECT_STYLE = 3;
-    private static final float[] LEVELS = {0f, 0.35f, 0.65f, 1f};
-    // Profiles in EFFECTS order: light, modern, neon, cinema (style indexes R.array.quick_effect_styles).
-    private static final float[][] PROFILES = {
-        {0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f},
-        {0.35f, 0.35f, 0.35f, 0f, 0f, 0f, 0.35f, 0f, 0f, 0f},
-        {0.65f, 0.65f, 0.35f, 0f, 0.35f, 0.35f, 0.65f, 0.35f, 0.35f, 0.65f},
-        {1f, 0.65f, 0.65f, 4f, 0.35f, 0.65f, 0.35f, 0.35f, 0.65f, 0.65f},
-        {0.35f, 0.65f, 0f, 1f, 0.65f, 0f, 0.35f, 0.65f, 0.35f, 1f},
-    };
     private static final Object[][] SETTINGS = {
         {FSR, false, 0f}, {FSR_SHARPNESS, true, 0.2f}, {FXAA, false, 0f}, {MSAA, false, 1f}, {XBRZ, false, 0f}, {HIRES_PACK, false, 0f}, {RACING_PAD, false, 1f},
-        {"gGZ64.Bloom", true, 0f}, {"gGZ64.Hdr", true, 0f}, {"gGZ64.Vibrance", true, 0f}, {"gGZ64.Style", false, 0f},
-        {"gGZ64.Vignette", true, 0f}, {"gGZ64.SpeedBlur", true, 0f}, {"gGZ64.Cas", true, 0f},
-        {"gGZ64.Ao", true, 0f}, {"gGZ64.Rays", true, 0f}, {"gGZ64.Dof", true, 0f},
     };
     private static final int[] XBRZ_FACTORS = {0, 2, 3, 4};
     static final int PICK_MODS = 6401;
@@ -544,7 +526,6 @@ final class QuickMenuDialog {
             switch (data.optString("key")) {
                 case "display": addFormatRow(); addFpsRow(); break;
                 case "touch": addTouchRows(); break;
-                case "effects": addEffectRows(); break;
                 case "enhancements": addScalingRows(); break;
                 case "mods": addInstallRow(); break;
                 default: break;
@@ -648,65 +629,6 @@ final class QuickMenuDialog {
             @Override public String[] values() { return array(R.array.quick_off_on); }
             @Override public int get() { return activity.fpsOverlayVisible() ? 1 : 0; }
             @Override public void set(int value) { activity.setFpsOverlayVisible(value == 1); }
-        });
-    }
-
-    // ── Picture effects ─────────────────────────────────────────────────────────────────────────
-
-    private int currentProfile() {
-        for (int p = 0; p < PROFILES.length; p++) {
-            boolean same = true;
-            for (int i = 0; i < EFFECTS.length && same; i++) same = Math.abs(value(EFFECTS[i]) - PROFILES[p][i]) < 0.01f;
-            if (same) return p;
-        }
-        return PROFILES.length; // custom
-    }
-
-    private void addEffectRows() {
-        addChoice(R.string.quick_effects_profile, R.string.quick_effects_profile_tip, new Choice() {
-            @Override public String[] values() {
-                // "Custom" is only shown, never chosen: it is whatever the rows below add up to.
-                String[] all = array(R.array.quick_effect_profiles);
-                return currentProfile() < PROFILES.length ? java.util.Arrays.copyOf(all, PROFILES.length) : all;
-            }
-            @Override public int get() { return currentProfile(); }
-            @Override public void set(int value) {
-                int profile = value % PROFILES.length; // "Custom" only shows what is set
-                for (int i = 0; i < EFFECTS.length; i++) {
-                    setSetting(EFFECTS[i], i != EFFECT_STYLE, PROFILES[profile][i]);
-                }
-                showPage(currentPage, 0); // the rows below follow the profile
-            }
-        });
-        int[] labels = {R.string.quick_effect_bloom, R.string.quick_effect_hdr, R.string.quick_effect_vibrance, 0,
-                        R.string.quick_effect_vignette, R.string.quick_effect_speed, R.string.quick_effect_cas,
-                        R.string.quick_effect_ao, R.string.quick_effect_rays, R.string.quick_effect_dof};
-        int[] tips = {R.string.quick_effect_bloom_tip, R.string.quick_effect_hdr_tip, R.string.quick_effect_vibrance_tip, 0,
-                      R.string.quick_effect_vignette_tip, R.string.quick_effect_speed_tip, R.string.quick_effect_cas_tip,
-                      R.string.quick_effect_ao_tip, R.string.quick_effect_rays_tip, R.string.quick_effect_dof_tip};
-        for (int i = 0; i < EFFECTS.length; i++) {
-            final String name = EFFECTS[i];
-            if (i == EFFECT_STYLE) {
-                addChoice(R.string.quick_effect_style, R.string.quick_effect_style_tip, new Choice() {
-                    @Override public String[] values() { return array(R.array.quick_effect_styles); }
-                    @Override public int get() { return Math.round(value(name)); }
-                    @Override public void set(int value) { setSetting(name, false, value); refreshProfile(); }
-                });
-                continue;
-            }
-            addChoice(labels[i], tips[i], new Choice() {
-                @Override public String[] values() { return array(R.array.quick_effect_levels); }
-                @Override public int get() { return nearest(LEVELS, value(name)); }
-                @Override public void set(int value) { setSetting(name, true, LEVELS[value]); refreshProfile(); }
-            });
-        }
-    }
-
-    /** The profile row shows "Custom" once a single effect changes. */
-    private void refreshProfile() {
-        final int focus = focusIndex(rows.findFocus() != null ? rowOf(rows.findFocus()) : null);
-        ui.post(new Runnable() {
-            @Override public void run() { showPage(currentPage, focus); }
         });
     }
 

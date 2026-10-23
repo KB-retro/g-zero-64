@@ -520,7 +520,6 @@ std::string GdxMenu::BridgeExportJson() {
     AndroidSection& picture = Section(layout, "Picture");
     Page(picture, "Display", "display");
     Page(picture, "Graphics enhancements", "enhancements");
-    Page(picture, "Effects", "effects"); // all Java rows (QuickMenuDialog): G-Zero 64's own passes
     Page(picture, "Shaders", "shaders");
 
     for (const std::string& sectionName : mMenuOrder) {

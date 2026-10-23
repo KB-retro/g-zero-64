@@ -1645,37 +1645,6 @@ void gdx_discord_snapshot(GdxDiscordSnapshot* out) {
     out->playerFinished = (gRacers[0].stateFlags & RACER_STATE_FINISHED) != 0;
 }
 
-/* G-Zero 64: how strong the radial speed blur is (0..1), read by the renderer once per frame
- * (android/patches/libultraship/0008-gz64-effects.patch). Full from about 1500 km/h, stronger
- * while boosting; none outside a single-player race, in replays/demos, paused or after the
- * finish line. */
-float gz64_speed_blur_amount(void) {
-    extern int gdx_input_in_gameplay(void);
-    extern s32 gNumPlayers;
-    extern s8 gGamePaused;
-    extern s8 gTitleDemoState;
-    const Racer* racer = &gRacers[0];
-    float amount;
-    if (!gdx_input_in_gameplay() || gNumPlayers != 1 || gGamePaused != 0 ||
-        gTitleDemoState != TITLE_DEMO_INACTIVE || (racer->stateFlags & RACER_STATE_FINISHED) != 0) {
-        return 0.0f;
-    }
-    amount = (racer->speed * 21.6f - 700.0f) / 800.0f;
-    if (racer->boostTimer > 0) {
-        amount += 0.35f;
-    }
-    return amount < 0.0f ? 0.0f : (amount > 1.0f ? 1.0f : amount);
-}
-
-/* G-Zero 64: depth of field only where nothing is played or read -- the title screen's attract
- * demo, the EAD demo and the Grand Prix ending (renderer, 0009-gz64-depth-effects.patch). */
-int gz64_dof_active(void) {
-    extern s32 gGameMode;
-    extern s8 gTitleDemoState;
-    const s32 mode = GET_MODE(gGameMode);
-    return gTitleDemoState != TITLE_DEMO_INACTIVE || mode == GAMEMODE_GP_END_CS || mode == GAMEMODE_EAD_DEMO;
-}
-
 /* G-Zero 64: a race is being played -- not paused, not a demo, not past the finish line. The
  * Android touch controls switch to their racing scheme then (GameBridge.nativeInRace). */
 int gz64_in_race(void) {

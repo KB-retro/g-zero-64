@@ -134,50 +134,6 @@
     <string name="install_title">Installing…</string>
     <string name="install_note">Only the first time. It can take a few minutes.</string>
     <string name="install_percent">%d %%</string>
-    <string name="quick_effects_profile">Profile</string>
-    <string name="quick_effects_profile_tip">Sets every effect at once. With a Shaders preset on, the effects are not applied.</string>
-    <string-array name="quick_effect_profiles">
-        <item>Off</item>
-        <item>Light</item>
-        <item>Modern</item>
-        <item>Neon</item>
-        <item>Cinema</item>
-        <item>Custom</item>
-    </string-array>
-    <string-array name="quick_effect_levels">
-        <item>Off</item>
-        <item>Low</item>
-        <item>Medium</item>
-        <item>High</item>
-    </string-array>
-    <string name="quick_effect_bloom">Bloom</string>
-    <string name="quick_effect_bloom_tip">Lights, neons and boosts glow and spread.</string>
-    <string name="quick_effect_hdr">HDR tone</string>
-    <string name="quick_effect_hdr_tip">More contrast and depth: richer blacks and livelier lights.</string>
-    <string name="quick_effect_vibrance">Vibrance</string>
-    <string name="quick_effect_vibrance_tip">Saturates dull colours without burning the already vivid ones.</string>
-    <string name="quick_effect_style">Colour style</string>
-    <string name="quick_effect_style_tip">Colour grading of the whole picture.</string>
-    <string-array name="quick_effect_styles">
-        <item>Original</item>
-        <item>Cinema</item>
-        <item>Warm</item>
-        <item>Cold</item>
-        <item>Neon</item>
-        <item>Retro</item>
-    </string-array>
-    <string name="quick_effect_vignette">Vignette</string>
-    <string name="quick_effect_vignette_tip">Darkens the edges of the screen.</string>
-    <string name="quick_effect_speed">Speed blur</string>
-    <string name="quick_effect_speed_tip">Blur at the sides with your machine\'s speed, more when boosting. Single-player races only.</string>
-    <string name="quick_effect_cas">CAS sharpening</string>
-    <string name="quick_effect_cas_tip">AMD sharpening without halos. With FSR on, FSR\'s sharpening is used.</string>
-    <string name="quick_effect_ao">Ambient occlusion (SSAO)</string>
-    <string name="quick_effect_ao_tip">Soft shadows in corners, joints and under the machines: more volume. Uses the scene depth.</string>
-    <string name="quick_effect_rays">Light rays</string>
-    <string name="quick_effect_rays_tip">Shafts of light coming down from the bright sky.</string>
-    <string name="quick_effect_dof">Depth of field</string>
-    <string name="quick_effect_dof_tip">Blurs what is far from the centre. Only in the title screen demo and the Grand Prix ending, never while playing.</string>
     <string name="quick_racing_pad">Controller layout</string>
     <string name="quick_racing_pad_tip">Racing: stick or D-pad to steer, R2 accelerates, A boosts, left trigger (L2) air brakes, L1/R1 drift (Z/R), Y looks back, X changes the camera; in menus A accepts and B goes back. On touch, while racing: side arrows, drifts above them and automatic gas. Original: G-Diffuser\'s N64 mapping and the touch stick.</string>
     <string-array name="quick_racing_pad_modes">
