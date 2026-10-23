@@ -479,6 +479,7 @@ std::string GdxMenu::BridgeExportJson() {
     Page(picture, "Graphics enhancements", "enhancements");
     Page(picture, "Shaders and textures", "shaders");
 
+    bool singleRaceHeader = false;
     for (const std::string& sectionName : mMenuOrder) {
         auto section = mMenuEntries.find(sectionName);
         if (section == mMenuEntries.end()) {
@@ -518,6 +519,21 @@ std::string GdxMenu::BridgeExportJson() {
                     }
                     if (target != nullptr) {
                         AddRow(*FindPage(picture, target), row);
+                    } else if (sectionName == "Enhancements" && pageName == "Practice" &&
+                               std::string(widget.cVar) == "gEnhancements.Practice.PhotoMode") {
+                        // Photo mode is not about practising: it sits with the editing tools.
+                        AddRow(Page(Section(layout, sectionName), "Editing", ""), row);
+                    } else if (sectionName == "Enhancements" && pageName == "Single Race") {
+                        // Both pages only change the Practice mode: one page, Single Race under a header.
+                        AndroidPage& practice = Page(Section(layout, sectionName), "Practice", "");
+                        if (!singleRaceHeader) {
+                            singleRaceHeader = true;
+                            std::string header = "{\"id\":\"\",\"type\":\"header\",\"label\":";
+                            AppendEscaped(header, GdxTr("Single Race"));
+                            header += ",\"value\":0}";
+                            AddRow(practice, header);
+                        }
+                        AddRow(practice, row);
                     } else {
                         AddRow(Page(Section(layout, sectionName), PageName(sectionName, pageName), ""), row);
                     }
