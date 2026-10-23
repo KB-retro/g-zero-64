@@ -9,7 +9,6 @@
 #include "gdx_i18n.h"
 #include "gdx_menu_internal.h"
 #include "gdx_achievements.h"
-#include "gdx_workshop.h"
 #include "gz64_htc.h"
 
 #include <cmath>
@@ -223,60 +222,18 @@ std::string PageName(const std::string& section, const std::string& page) {
     return section == "Enhancements" && page == "Course Edit & Machine" ? "Editing" : page;
 }
 
-// Workshop -> Mods: one switch per installed .o2r pack, then Reload.
-constexpr const char* kPackPrefix = "special/pack/";
-constexpr const char* kReloadId = "special/reload";
-std::string gReloadStatus;
+// Shaders and textures: the HD pack's state (port/gz64_htc.cpp) and how many textures it has
+// replaced so far. The Java side puts its on/off switch just above this row.
+constexpr const char* kHdPackStatusId = "special/hdpack";
 
-void PackRows(AndroidPage& page) {
-    std::string header = "{\"id\":\"\",\"type\":\"header\",\"label\":";
-    AppendEscaped(header, GdxTr("Installed packs"));
-    header += ",\"value\":0}";
-    AddRow(page, header);
-    const std::vector<GdxWorkshopPackInfo> packs = GdxWorkshopListPacks();
-    if (packs.empty()) {
-        std::string row = "{\"id\":\"\",\"type\":\"text\",\"label\":";
-        AppendEscaped(row, GdxTr("No packs installed yet."));
-        row += ",\"value\":0}";
-        AddRow(page, row);
-    }
-    for (size_t i = 0; i < packs.size(); ++i) {
-        const GdxWorkshopPackInfo& pack = packs[i];
-        std::string row = "{\"id\":";
-        AppendEscaped(row, (kPackPrefix + std::to_string(i)).c_str());
-        row += ",\"type\":\"check\",\"label\":";
-        AppendEscaped(row, (pack.name.empty() ? pack.basename : pack.name).c_str());
-        std::string tip = pack.basename;
-        if (pack.manifestPresent) {
-            tip += "  v" + (pack.version.empty() ? std::string("?") : pack.version);
-            if (!pack.author.empty()) {
-                tip += "  -  " + pack.author;
-            }
-        }
-        row += ",\"tip\":";
-        AppendEscaped(row, tip.c_str());
-        row += ",\"value\":";
-        row += pack.disabled ? "0" : "1";
-        row += '}';
-        AddRow(page, row);
-    }
-    // The .htc pack (port/gz64_htc.cpp): its state and how many textures it has replaced so far.
+void HdPackRows(AndroidPage& page) {
     const char* htc = Gz64HtcStatus();
-    if (htc[0] != '\0') {
-        std::string row = "{\"id\":\"\",\"type\":\"text\",\"label\":";
-        AppendEscaped(row, htc);
-        row += ",\"value\":0}";
-        AddRow(page, row);
-    }
-    std::string reload = "{\"id\":";
-    AppendEscaped(reload, kReloadId);
-    reload += ",\"type\":\"button\",\"label\":";
-    AppendEscaped(reload, GdxTr("Reload packs"));
-    reload += ",\"tip\":";
-    AppendEscaped(reload, gReloadStatus.empty() ? GdxTr("Packs switched on or off apply after Reload.")
-                                                : gReloadStatus.c_str());
-    reload += ",\"value\":0}";
-    AddRow(page, reload);
+    std::string row = "{\"id\":";
+    AppendEscaped(row, kHdPackStatusId);
+    row += ",\"type\":\"text\",\"label\":";
+    AppendEscaped(row, htc);
+    row += ",\"value\":0}";
+    AddRow(page, row);
 }
 
 // Enhancements -> Achievements: a read-only line per achievement.
@@ -520,7 +477,7 @@ std::string GdxMenu::BridgeExportJson() {
     AndroidSection& picture = Section(layout, "Picture");
     Page(picture, "Display", "display");
     Page(picture, "Graphics enhancements", "enhancements");
-    Page(picture, "Shaders", "shaders");
+    Page(picture, "Shaders and textures", "shaders");
 
     for (const std::string& sectionName : mMenuOrder) {
         auto section = mMenuEntries.find(sectionName);
@@ -532,10 +489,10 @@ std::string GdxMenu::BridgeExportJson() {
             if (page == section->second.sidebars.end()) {
                 continue;
             }
-            // Mouse controls and the Discord status have nothing to work with on Android, and of the
-            // Workshop only Mods is kept (at the end of Picture): its tools are for desktop modders.
+            // Mouse controls and the Discord status have nothing to work with on Android, and the
+            // Workshop (mods, asset tools) is for desktop modders.
             if (sectionName == "Online" || (sectionName == "Enhancements" && pageName == "Mouse") ||
-                (sectionName == "Workshop" && pageName != "Mods")) {
+                sectionName == "Workshop") {
                 continue;
             }
             // The input viewer overlay gives way to the touch controls, all Java (QuickMenuDialog).
@@ -544,7 +501,6 @@ std::string GdxMenu::BridgeExportJson() {
                 continue;
             }
             const bool achievements = sectionName == "Enhancements" && pageName == "Achievements";
-            const bool mods = sectionName == "Workshop" && pageName == "Mods";
             for (size_t col = 0; col < page->second.columnWidgets.size(); ++col) {
                 auto& column = page->second.columnWidgets[col];
                 for (size_t index = 0; index < column.size(); ++index) {
@@ -563,20 +519,17 @@ std::string GdxMenu::BridgeExportJson() {
                     if (target != nullptr) {
                         AddRow(*FindPage(picture, target), row);
                     } else {
-                        AddRow(mods ? Page(picture, pageName, "mods")
-                                    : Page(Section(layout, sectionName), PageName(sectionName, pageName), ""),
-                               row);
+                        AddRow(Page(Section(layout, sectionName), PageName(sectionName, pageName), ""), row);
                     }
                 }
-            }
-            if (mods) {
-                PackRows(Page(picture, pageName, "mods"));
             }
             if (achievements) {
                 AchievementRows(Page(Section(layout, sectionName), pageName, "achievements"));
             }
         }
     }
+
+    HdPackRows(*FindPage(picture, "shaders"));
 
     std::string out = "{\"sections\":[";
     bool firstSection = true;
@@ -632,15 +585,6 @@ static GdxUI::WidgetInfo* FindWidget(std::unordered_map<std::string, GdxUI::Main
 }
 
 bool GdxMenu::BridgeSet(const std::string& id, double value) {
-    if (id.rfind(kPackPrefix, 0) == 0) {
-        const size_t index = std::strtoul(id.c_str() + std::strlen(kPackPrefix), nullptr, 10);
-        const std::vector<GdxWorkshopPackInfo> packs = GdxWorkshopListPacks();
-        if (index >= packs.size()) {
-            return false;
-        }
-        GdxWorkshopSetPackDisabled(packs[index].id.c_str(), packs[index].basename.c_str(), value != 0.0 ? 0 : 1);
-        return true;
-    }
     if (id == kShaderId) {
         const long selection = std::lround(value);
         if (selection < 0 || selection >= kShaderChoices) {
@@ -708,12 +652,6 @@ bool GdxMenu::BridgeSet(const std::string& id, double value) {
 }
 
 bool GdxMenu::BridgePress(const std::string& id) {
-    if (id == kReloadId) {
-        char status[160] = "";
-        GdxWorkshopReload(status, sizeof(status));
-        gReloadStatus = status;
-        return true;
-    }
     GdxUI::WidgetInfo* widget = FindWidget(mMenuEntries, id);
     if (widget == nullptr || widget->type != GdxUI::WIDGET_BUTTON || widget->callback == nullptr) {
         return false;

@@ -43,6 +43,15 @@ public final class GameActivity extends SDLActivity {
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT));
             setFpsOverlayVisible(getSharedPreferences("game", MODE_PRIVATE).getBoolean("fps", false));
             new AchievementToast(this, mLayout);
+            // An HD pack copied in with the game files: on, and that one loaded.
+            if (getSharedPreferences("game", MODE_PRIVATE).getBoolean("hdPackImported", false)) {
+                getSharedPreferences("game", MODE_PRIVATE).edit().remove("hdPackImported").apply();
+                try {
+                    GameBridge.setInt("gGZ64.HiresPack", 1);
+                    GameBridge.setInt("gGZ64.HiresPackSerial", (int) (System.currentTimeMillis() / 1000));
+                } catch (UnsatisfiedLinkError ignored) {
+                }
+            }
             if (!new File(appDir, "fzerox.o2r").isFile()) showInstallScreen();
         }
         restoreFullscreen();
@@ -362,10 +371,6 @@ public final class GameActivity extends SDLActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
         if (touchPresets != null && touchPresets.onActivityResult(requestCode, resultCode, data)) return;
-        if (requestCode == QuickMenuDialog.PICK_MODS) {
-            if (resultCode == RESULT_OK) QuickMenuDialog.modsPicked(this, data);
-            return;
-        }
         super.onActivityResult(requestCode, resultCode, data);
     }
 

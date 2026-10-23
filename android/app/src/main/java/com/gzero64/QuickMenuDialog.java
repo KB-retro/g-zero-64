@@ -4,10 +4,6 @@ import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.content.Intent;
-import android.database.Cursor;
-import android.net.Uri;
-import android.provider.OpenableColumns;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -28,11 +24,6 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -72,11 +63,10 @@ final class QuickMenuDialog {
     private static final String HIRES_PACK = "gGZ64.HiresPack";
     private static final String RACING_PAD = "gGZ64.RacingPad";
     private static final Object[][] SETTINGS = {
-        {FSR, false, 0f}, {FSR_SHARPNESS, true, 0.2f}, {FXAA, false, 0f}, {MSAA, false, 1f}, {XBRZ, false, 0f}, {HIRES_PACK, false, 0f}, {RACING_PAD, false, 1f},
+        {FSR, false, 0f}, {FSR_SHARPNESS, true, 0.2f}, {FXAA, false, 0f}, {MSAA, false, 1f}, {XBRZ, false, 0f}, {HIRES_PACK, false, 1f}, {RACING_PAD, false, 1f},
     };
     private static final int[] XBRZ_FACTORS = {0, 2, 3, 4};
-    static final int PICK_MODS = 6401;
-    private static final String RELOAD_PACKS = "special/reload";
+    private static final String HD_PACK_STATUS = "special/hdpack";
     /** The open menu, for the mod picker's result. */
     private static QuickMenuDialog current;
     private static final float[] SHARPNESS = {1.0f, 0.5f, 0.0f}; // AMD stops: 0 = sharpest
@@ -527,12 +517,16 @@ final class QuickMenuDialog {
                 case "display": addFormatRow(); addFpsRow(); break;
                 case "touch": addTouchRows(); break;
                 case "enhancements": addScalingRows(); break;
-                case "mods": addInstallRow(); break;
                 default: break;
             }
             try {
                 JSONArray list = data.getJSONArray("rows");
-                for (int i = 0; i < list.length(); i++) addGameRow(list.getJSONObject(i));
+                for (int i = 0; i < list.length(); i++) {
+                    JSONObject row = list.getJSONObject(i);
+                    // The HD pack switch goes just above the pack's status line (gdx_menu_bridge.cpp).
+                    if (HD_PACK_STATUS.equals(row.optString("id"))) addHdPackRow();
+                    addGameRow(row);
+                }
             } catch (JSONException exception) {
                 Log.e("GZero64", "Bad page JSON", exception);
             }
@@ -622,8 +616,6 @@ final class QuickMenuDialog {
         });
     }
 
-    // ── Installing packs ────────────────────────────────────────────────────────────────────────
-
     private void addFpsRow() {
         addChoice(R.string.quick_fps, 0, new Choice() {
             @Override public String[] values() { return array(R.array.quick_off_on); }
@@ -663,284 +655,13 @@ final class QuickMenuDialog {
         rows.addView(edit);
     }
 
-    // ── Installed packs ─────────────────────────────────────────────────────────────────────────
-
-    /** Installed packs: .o2r in mods/, .htc in hires/, music in mods/music/custom/. */
-    private static List<File> installedPacks(Context context) {
-        File appDir = RuntimeFiles.appDir(context);
-        List<File> files = new ArrayList<>();
-        for (String folder : new String[] {"mods", "hires", "mods/music/custom"}) {
-            File[] list = new File(appDir, folder).listFiles();
-            if (list == null) continue;
-            java.util.Arrays.sort(list);
-            for (File file : list) {
-                String lower = file.getName().toLowerCase(Locale.ROOT);
-                if (file.isFile() && (lower.endsWith(".o2r") || lower.endsWith(".htc") || lower.endsWith(".ogg")
-                        || lower.endsWith(".flac") || lower.endsWith(".wav"))) {
-                    files.add(file);
-                }
-            }
-        }
-        return files;
-    }
-
-    private void deletePacks() {
-        final List<File> files = installedPacks(activity);
-        if (files.isEmpty()) {
-            new AlertDialog.Builder(activity).setMessage(R.string.quick_delete_none)
-                    .setPositiveButton(R.string.action_close, null).show();
-            return;
-        }
-        final String[] names = new String[files.size()];
-        for (int i = 0; i < names.length; i++) names[i] = files.get(i).getName();
-        final boolean[] chosen = new boolean[names.length];
-        new AlertDialog.Builder(activity).setTitle(R.string.quick_delete_mods)
-                .setMultiChoiceItems(names, chosen, new DialogInterface.OnMultiChoiceClickListener() {
-                    @Override public void onClick(DialogInterface d, int which, boolean checked) { chosen[which] = checked; }
-                })
-                .setPositiveButton(R.string.action_delete, new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int which) {
-                        final List<File> doomed = new ArrayList<>();
-                        for (int i = 0; i < chosen.length; i++) if (chosen[i]) doomed.add(files.get(i));
-                        if (!doomed.isEmpty()) confirmDelete(doomed);
-                    }
-                })
-                .setNegativeButton(R.string.quick_cancel, null).show();
-    }
-
-    private void confirmDelete(final List<File> doomed) {
-        new AlertDialog.Builder(activity)
-                .setMessage(activity.getResources().getQuantityString(R.plurals.quick_delete_confirm, doomed.size(), doomed.size()))
-                .setPositiveButton(R.string.action_delete, new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int which) {
-                        boolean htc = false;
-                        int deleted = 0;
-                        File cache = new File(RuntimeFiles.appDir(activity), "cache/htc");
-                        for (File file : doomed) {
-                            if (file.getName().toLowerCase(Locale.ROOT).endsWith(".htc")) {
-                                htc = true;
-                                new File(cache, file.getName() + ".idx").delete();
-                                new File(cache, file.getName() + ".bin").delete();
-                            }
-                            if (file.delete()) deleted++;
-                        }
-                        if (htc) setSetting(HIRES_PACK, false, 0); // drops the pack it was using
-                        final String message = activity.getString(R.string.quick_deleted, deleted);
-                        worker.execute(new Runnable() {
-                            @Override public void run() {
-                                try {
-                                    GameBridge.nativeMenuPress(RELOAD_PACKS);
-                                } catch (UnsatisfiedLinkError ignored) {
-                                }
-                                final String json = readMenu();
-                                ui.post(new Runnable() {
-                                    @Override public void run() {
-                                        if (!dialog.isShowing()) return;
-                                        if (!json.isEmpty()) {
-                                            parse(json);
-                                            showPage(Math.min(currentPage, pages.size() - 1), 0);
-                                        }
-                                        footer.setText(message);
-                                        Toast.makeText(activity, message, Toast.LENGTH_LONG).show();
-                                    }
-                                });
-                            }
-                        });
-                    }
-                })
-                .setNegativeButton(R.string.quick_cancel, null).show();
-    }
-
-    private void addInstallRow() {
-        Button install = new Button(activity);
-        install.setText(R.string.quick_install_mods);
-        install.setAllCaps(false);
-        install.setOnFocusChangeListener(footerOnFocus(activity.getString(R.string.quick_install_mods_tip)));
-        install.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View view) {
-                Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT)
-                        .addCategory(Intent.CATEGORY_OPENABLE)
-                        .setType("*/*")
-                        .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-                try {
-                    activity.startActivityForResult(pick, PICK_MODS);
-                } catch (android.content.ActivityNotFoundException exception) {
-                    footer.setText(R.string.quick_install_failed);
-                }
-            }
-        });
-        rows.addView(install);
-        Button delete = new Button(activity);
-        delete.setText(R.string.quick_delete_mods);
-        delete.setAllCaps(false);
-        delete.setOnFocusChangeListener(footerOnFocus(activity.getString(R.string.quick_delete_mods_tip)));
-        delete.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View view) { deletePacks(); }
-        });
-        rows.addView(delete);
+    /** On/off for the emulator HD texture pack, above its status line on Shaders and textures. */
+    private void addHdPackRow() {
         addChoice(R.string.quick_hires_pack, R.string.quick_hires_pack_tip, new Choice() {
             @Override public String[] values() { return array(R.array.quick_off_on); }
             @Override public int get() { return value(HIRES_PACK) != 0 ? 1 : 0; }
             @Override public void set(int value) { setSetting(HIRES_PACK, false, value); }
         });
-    }
-
-    /** GameActivity's result for PICK_MODS: copies the packs into mods/ and reloads them. */
-    static void modsPicked(final GameActivity activity, Intent data) {
-        final List<Uri> uris = new ArrayList<>();
-        if (data != null && data.getClipData() != null) {
-            for (int i = 0; i < data.getClipData().getItemCount(); i++) uris.add(data.getClipData().getItemAt(i).getUri());
-        } else if (data != null && data.getData() != null) {
-            uris.add(data.getData());
-        }
-        if (uris.isEmpty()) return;
-        if (current != null) current.footer.setText(R.string.quick_installing);
-        // A visible copy: big packs (.htc) take a while, and the menu itself shows nothing meanwhile.
-        final Handler main = new Handler(Looper.getMainLooper());
-        final android.widget.ProgressBar bar =
-                new android.widget.ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal);
-        bar.setMax(1000);
-        final TextView status = new TextView(activity);
-        status.setPadding(0, 0, 0, 16);
-        LinearLayout box = new LinearLayout(activity);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(48, 24, 48, 8);
-        box.addView(status);
-        box.addView(bar);
-        final AlertDialog progress = new AlertDialog.Builder(activity).setTitle(R.string.quick_installing)
-                .setView(box).setCancelable(false).show();
-        worker.execute(new Runnable() {
-            @Override public void run() {
-                int installed = 0, skipped = 0;
-                boolean htcInstalled = false;
-                final StringBuilder names = new StringBuilder();
-                File appDir = RuntimeFiles.appDir(activity);
-                for (Uri uri : uris) {
-                    String name = displayName(activity, uri);
-                    String lower = name.toLowerCase(Locale.ROOT);
-                    File dir;
-                    if (lower.endsWith(".o2r")) {
-                        dir = new File(appDir, "mods");
-                    } else if (lower.endsWith(".htc")) {
-                        dir = new File(appDir, "hires");
-                    } else if (lower.endsWith(".ogg") || lower.endsWith(".flac") || lower.endsWith(".wav")) {
-                        dir = new File(appDir, "mods/music/custom");
-                    } else {
-                        skipped++;
-                        continue;
-                    }
-                    if (!dir.isDirectory() && !dir.mkdirs()) {
-                        skipped++;
-                        continue;
-                    }
-                    final long size = fileSize(activity, uri);
-                    final String shown = name;
-                    main.post(new Runnable() {
-                        @Override public void run() {
-                            status.setText(shown);
-                            bar.setIndeterminate(size <= 0);
-                            bar.setProgress(0);
-                        }
-                    });
-                    try (InputStream in = activity.getContentResolver().openInputStream(uri);
-                         OutputStream out = new FileOutputStream(new File(dir, name))) {
-                        if (in == null) throw new IOException("no stream");
-                        byte[] buffer = new byte[1 << 16];
-                        long copied = 0;
-                        long lastUpdate = 0;
-                        for (int n; (n = in.read(buffer)) > 0; ) {
-                            out.write(buffer, 0, n);
-                            copied += n;
-                            long now = android.os.SystemClock.elapsedRealtime();
-                            if (size > 0 && now - lastUpdate > 100) {
-                                lastUpdate = now;
-                                final int permille = (int) Math.min(1000, copied * 1000 / size);
-                                main.post(new Runnable() {
-                                    @Override public void run() { bar.setProgress(permille); }
-                                });
-                            }
-                        }
-                        installed++;
-                        if (lower.endsWith(".htc")) htcInstalled = true;
-                        names.append("\n• ").append(name);
-                    } catch (IOException exception) {
-                        Log.e("GZero64", "Cannot install " + name, exception);
-                        skipped++;
-                    }
-                }
-                // An emulator HD pack is useless switched off: turn the option on and load the new pack.
-                if (htcInstalled) {
-                    try {
-                        GameBridge.setInt(HIRES_PACK, 1);
-                        GameBridge.setInt("gGZ64.HiresPackSerial", (int) (System.currentTimeMillis() / 1000));
-                    } catch (UnsatisfiedLinkError ignored) {
-                    }
-                }
-                // The game thread may still be held by the picker's pause: retry for a few seconds.
-                for (int attempt = 0; installed > 0 && attempt < 10; attempt++) {
-                    try {
-                        if (GameBridge.nativeMenuPress(RELOAD_PACKS)) break;
-                        Thread.sleep(500);
-                    } catch (UnsatisfiedLinkError | InterruptedException ignored) {
-                        break;
-                    }
-                }
-                final String message = activity.getString(R.string.quick_installed, installed)
-                        + (skipped > 0 ? "  " + activity.getString(R.string.quick_install_skipped, skipped) : "");
-                final String menuJson = readMenu();
-                final boolean htcOn = htcInstalled;
-                new Handler(Looper.getMainLooper()).post(new Runnable() {
-                    @Override public void run() {
-                        QuickMenuDialog menu = current;
-                        if (menu == null || !menu.dialog.isShowing()) return;
-                        if (htcOn) menu.values.put(HIRES_PACK, 1f);
-                        if (!menuJson.isEmpty()) {
-                            menu.parse(menuJson);
-                            menu.showPage(Math.min(menu.currentPage, menu.pages.size() - 1), 0);
-                        }
-                        menu.footer.setText(message);
-                    }
-                });
-                final String report = message + names;
-                main.post(new Runnable() {
-                    @Override public void run() {
-                        if (activity.isFinishing() || activity.isDestroyed()) return;
-                        progress.dismiss();
-                        // A clear answer: what was installed and what was not.
-                        new AlertDialog.Builder(activity).setTitle(R.string.quick_install_mods_done)
-                                .setMessage(report).setPositiveButton(R.string.action_close, null).show();
-                    }
-                });
-            }
-        });
-    }
-
-    private static String readMenu() {
-        try {
-            return GameBridge.nativeMenuJson();
-        } catch (UnsatisfiedLinkError error) {
-            return "";
-        }
-    }
-
-    private static long fileSize(Context context, Uri uri) {
-        try (Cursor cursor = context.getContentResolver().query(uri,
-                new String[] {OpenableColumns.SIZE}, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst() && !cursor.isNull(0)) return cursor.getLong(0);
-        } catch (RuntimeException ignored) {
-        }
-        return -1;
-    }
-
-    private static String displayName(Context context, Uri uri) {
-        String name = null;
-        try (Cursor cursor = context.getContentResolver().query(uri,
-                new String[] {OpenableColumns.DISPLAY_NAME}, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) name = cursor.getString(0);
-        } catch (RuntimeException ignored) {
-        }
-        if (name == null) name = uri.getLastPathSegment() != null ? uri.getLastPathSegment() : "pack.o2r";
-        return new File(name).getName(); // no folders from the provider's name
     }
 
     private void setSetting(String name, boolean isFloat, float value) {

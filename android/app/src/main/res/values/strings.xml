@@ -56,11 +56,6 @@
     <string name="quick_fsr_tip">Escalado AMD FSR 1.0: útil con resolución interna por debajo del 100 %.</string>
     <string name="quick_fsr_sharpness_tip">Nitidez que añade FSR tras escalar.</string>
     <string name="quick_antialiasing_tip">FXAA es ligero; MSAA es más limpio pero más exigente.</string>
-    <string name="quick_install_mods">Instalar packs…</string>
-    <string name="quick_install_mods_tip">Packs .o2r (texturas, música, sonidos, modelos, scripts), packs HD .htc o música .ogg, .flac y .wav.</string>
-    <string name="quick_install_failed">No hay ningún explorador de archivos disponible.</string>
-    <string name="quick_installed">Instalados: %d.</string>
-    <string name="quick_install_skipped">No válidos: %d.</string>
     <string name="quick_xbrz">Escalado de texturas (xBRZ)</string>
     <string name="quick_xbrz_tip">Suaviza iconos, letras y texturas del juego sin emborronarlos. Desactívalo si usas un pack de texturas. 4x exige más al cargar.</string>
     <string-array name="quick_xbrz">
@@ -70,8 +65,7 @@
         <item>4x</item>
     </string-array>
     <string name="quick_hires_pack">Pack HD de emuladores (.htc)</string>
-    <string name="quick_hires_pack_tip">Usa un pack .htc de GLideN64 instalado con «Instalar packs…». La primera vez tarda en prepararse. Experimental.</string>
-    <string name="quick_installing">Copiando…</string>
+    <string name="quick_hires_pack_tip">Texturas HD de un pack .htc de emulador (GLideN64) copiado desde la carpeta del juego. La primera vez tarda en prepararse.</string>
     <string name="action_save">Guardar</string>
     <string name="action_cancel">Cancelar</string>
     <string name="action_close">Cerrar</string>
@@ -125,15 +119,6 @@
         <item>Derrape derecho (R)</item>
         <item>Cámara (C-derecha)</item>
     </string-array>
-    <string name="quick_delete_mods">Borrar packs…</string>
-    <string name="quick_delete_mods_tip">Elige los packs instalados que quieres borrar.</string>
-    <string name="quick_delete_none">No hay packs instalados.</string>
-    <plurals name="quick_delete_confirm">
-        <item quantity="one">¿Borrar %d pack?</item>
-        <item quantity="other">¿Borrar %d packs?</item>
-    </plurals>
-    <string name="quick_deleted">Borrados: %d.</string>
-    <string name="quick_install_mods_done">Instalación de packs</string>
     <string name="install_title">Instalando…</string>
     <string name="install_note">Solo la primera vez. Puede tardar unos minutos.</string>
     <string name="install_percent">%d %%</string>
@@ -191,4 +176,5 @@
         <item>Quitar</item>
     </string-array>
     <string name="achievement_unlocked">¡Logro desbloqueado!</string>
+    <string name="launcher_hd_pack">Pack de texturas HD copiado: %1$s. Se activará al jugar.</string>
 </resources>

@@ -42,6 +42,7 @@ final class GameFiles {
     /** What a folder scan found; the names are the source files, null when missing. */
     static final class Scan {
         String rom, disk, ipl;
+        String hdPack; // an emulator HD texture pack (.htc) found beside them, copied into hires/
         boolean japaneseRom, japaneseDisk;
     }
 
@@ -67,11 +68,19 @@ final class GameFiles {
             DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_SIZE,
             DocumentsContract.Document.COLUMN_MIME_TYPE};
         List<String[]> files = new ArrayList<>();
+        String[] hdPack = null;
         try (Cursor cursor = resolver.query(children, columns, null, null, null)) {
             if (cursor == null) throw new IOException("Cannot list the folder");
             while (cursor.moveToNext()) {
                 if (DocumentsContract.Document.MIME_TYPE_DIR.equals(cursor.getString(3))) continue;
                 long size = cursor.getLong(2);
+                String name = cursor.getString(1);
+                String lower = name != null ? name.toLowerCase(java.util.Locale.ROOT) : "";
+                // GLideN64 names its packs <GAME>_HIRESTEXTURES.htc; any .htc will do, that one first.
+                if (lower.endsWith(".htc") && (hdPack == null || lower.contains("hirestextures"))) {
+                    hdPack = new String[] {cursor.getString(0), name, Long.toString(size)};
+                    continue;
+                }
                 if (size != ROM_SIZE && size != DISK_SIZE && size != IPL_SIZE) continue;
                 files.add(new String[] {cursor.getString(0), cursor.getString(1), Long.toString(size)});
             }
@@ -110,6 +119,22 @@ final class GameFiles {
                     temporary.delete();
                 }
             }
+        }
+        if (hdPack != null) {
+            File hires = new File(target, "hires");
+            File destination = new File(hires, hdPack[1]);
+            long size = Long.parseLong(hdPack[2]);
+            // Changing folder again does not copy the same pack twice.
+            if (!(destination.isFile() && destination.length() == size)) {
+                if (!hires.isDirectory() && !hires.mkdirs()) throw new IOException("Cannot create " + hires);
+                File temporary = new File(hires, ".import.tmp");
+                copy(resolver, DocumentsContract.buildDocumentUriUsingTree(tree, hdPack[0]), temporary, false);
+                install(temporary, destination);
+                // The prepared copy of an older pack with this name is stale now.
+                new File(target, "cache/htc/" + hdPack[1] + ".idx").delete();
+                new File(target, "cache/htc/" + hdPack[1] + ".bin").delete();
+            }
+            scan.hdPack = hdPack[1];
         }
         return scan;
     }

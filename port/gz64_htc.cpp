@@ -5,7 +5,7 @@
 // bytes as the N64 holds them in RDRAM (plus the CRC of its palette for CI textures), so the pack
 // works for any port that can hash the same bytes the same way.
 //
-// gGZ64.HiresPack switches it on; the first .htc found in <app>/hires (or <app>/mods) is read once
+// gGZ64.HiresPack (on by default) switches it on; the newest .htc found in <app>/hires (or <app>/mods) is read once
 // on a background thread into <app>/cache/htc (payloads plus an index), and later boots reuse that
 // cache. The renderer (android/patches/libultraship/0006-gz64-htc.patch) asks gz64_htc_find for
 // every texture it is about to decode and uploads the hi-res image instead when the pack has it.
@@ -575,7 +575,7 @@ void Unload() {
 }
 
 void Refresh() {
-    const int enabled = CVarGetInteger("gGZ64.HiresPack", 0) != 0 ? 1 : 0;
+    const int enabled = CVarGetInteger("gGZ64.HiresPack", 1) != 0 ? 1 : 0;
     // Bumped by the quick menu when it installs an .htc: switch to it even if a pack is in use.
     static int sSerial = -1;
     const int serial = CVarGetInteger("gGZ64.HiresPackSerial", 0);
@@ -979,7 +979,7 @@ const char* Gz64HtcStatus() {
             break;
         }
         case kNoPack:
-            std::snprintf(buffer, sizeof(buffer), "%s", GdxTr("No .htc pack installed."));
+            std::snprintf(buffer, sizeof(buffer), "%s", GdxTr("No HD pack: put the .htc beside the game files and pick that folder again in the launcher."));
             break;
         case kFailed:
             std::snprintf(buffer, sizeof(buffer), GdxTr("%s: could not be read (see the log)"), gStatusName.c_str());

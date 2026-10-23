@@ -53,11 +53,6 @@
     <string name="quick_fsr_tip">AMD FSR 1.0 upscaling: useful with internal resolution below 100%.</string>
     <string name="quick_fsr_sharpness_tip">Sharpening FSR adds after upscaling.</string>
     <string name="quick_antialiasing_tip">FXAA is light; MSAA is cleaner but heavier.</string>
-    <string name="quick_install_mods">Install packs…</string>
-    <string name="quick_install_mods_tip">.o2r packs (textures, music, sounds, models, scripts), .htc HD packs or .ogg, .flac and .wav music.</string>
-    <string name="quick_install_failed">No file browser available.</string>
-    <string name="quick_installed">Installed: %d.</string>
-    <string name="quick_install_skipped">Not valid: %d.</string>
     <string name="quick_xbrz">Texture upscaling (xBRZ)</string>
     <string name="quick_xbrz_tip">Smooths the game\'s icons, lettering and textures without blurring them. Turn it off with a texture pack. 4x costs more when loading.</string>
     <string-array name="quick_xbrz">
@@ -67,8 +62,7 @@
         <item>4x</item>
     </string-array>
     <string name="quick_hires_pack">Emulator HD pack (.htc)</string>
-    <string name="quick_hires_pack_tip">Uses a GLideN64 .htc pack installed with “Install packs…”. Takes a while to prepare the first time. Experimental.</string>
-    <string name="quick_installing">Copying…</string>
+    <string name="quick_hires_pack_tip">HD textures from an emulator .htc pack (GLideN64) copied from the game folder. Takes a while to prepare the first time.</string>
     <string name="action_save">Save</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_close">Close</string>
@@ -122,15 +116,6 @@
         <item>Drift right (R)</item>
         <item>Camera (C-Right)</item>
     </string-array>
-    <string name="quick_delete_mods">Delete packs…</string>
-    <string name="quick_delete_mods_tip">Choose the installed packs to delete.</string>
-    <string name="quick_delete_none">No packs installed.</string>
-    <plurals name="quick_delete_confirm">
-        <item quantity="one">Delete %d pack?</item>
-        <item quantity="other">Delete %d packs?</item>
-    </plurals>
-    <string name="quick_deleted">Deleted: %d.</string>
-    <string name="quick_install_mods_done">Pack installation</string>
     <string name="install_title">Installing…</string>
     <string name="install_note">Only the first time. It can take a few minutes.</string>
     <string name="install_percent">%d %%</string>
@@ -188,4 +173,5 @@
         <item>Remove</item>
     </string-array>
     <string name="achievement_unlocked">Achievement unlocked!</string>
+    <string name="launcher_hd_pack">HD texture pack copied: %1$s. It will be on when you play.</string>
 </resources>

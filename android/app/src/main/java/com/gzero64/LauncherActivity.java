@@ -99,6 +99,12 @@ public final class LauncherActivity extends Activity {
                     File dir = RuntimeFiles.appDir(LauncherActivity.this);
                     GameFiles.Scan scan = GameFiles.importFrom(getContentResolver(), tree, dir);
                     message = describe(scan, GameFiles.installed(dir));
+                    if (scan.hdPack != null) {
+                        // The game switches the HD pack on at its next start (GameActivity).
+                        getSharedPreferences("game", MODE_PRIVATE).edit().putBoolean("hdPackImported", true).apply();
+                        String found = getString(R.string.launcher_hd_pack, scan.hdPack);
+                        message = message.isEmpty() ? found : message + "\n\n" + found;
+                    }
                 } catch (IOException | RuntimeException exception) {
                     Log.w("GZero64", "Folder import failed", exception);
                     message = getString(R.string.launcher_unreadable);
