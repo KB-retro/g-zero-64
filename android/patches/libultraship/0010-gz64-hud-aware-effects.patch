@@ -1,0 +1,331 @@
+diff --git a/include/fast/backends/gfx_opengl.h b/include/fast/backends/gfx_opengl.h
+index ba72eb3..0fd7b40 100644
+--- a/include/fast/backends/gfx_opengl.h
++++ b/include/fast/backends/gfx_opengl.h
+@@ -136,6 +136,7 @@ class GfxRenderingAPIOGL final : public GfxRenderingAPI {
+                               uint32_t outH) override;
+     uintptr_t Gz64ApplyFilters(int srcFbId, uint32_t outW, uint32_t outH, bool fxaa, bool fsr,
+                                float sharpness) override;
++    void Gz64SnapshotScene(int fbId) override;
+     uintptr_t ApplyPostShaderChain(int srcFbId, const GdxPostShaderPipeline& pipeline, uint32_t nativeW,
+                                    uint32_t nativeH, uint32_t outW, uint32_t outH) override;
+     void DeleteTexture(uint32_t texId) override;
+@@ -227,6 +228,11 @@ class GfxRenderingAPIOGL final : public GfxRenderingAPI {
+     GLuint mGz64DepthFbo = 0;                      // depth copy target
+     GLuint mGz64DepthTex = 0;
+     uint32_t mGz64DepthW = 0, mGz64DepthH = 0;
++    // The frame before the HUD (Gz64SnapshotScene), valid for the frame it was taken in.
++    GLuint mGz64SceneFbo = 0;
++    GLuint mGz64SceneTex = 0;
++    uint32_t mGz64SceneW = 0, mGz64SceneH = 0;
++    int mGz64WideFb[2] = { -1, -1 }; // the second, wider bloom level
+ #if defined(__APPLE__) || defined(USE_OPENGLES)
+     GLuint mPostVao = 0; // attribute-less fullscreen triangle still needs a VAO on core profiles
+ #endif
+diff --git a/include/fast/backends/gfx_rendering_api.h b/include/fast/backends/gfx_rendering_api.h
+index 410aa23..7bd0d66 100644
+--- a/include/fast/backends/gfx_rendering_api.h
++++ b/include/fast/backends/gfx_rendering_api.h
+@@ -101,6 +101,10 @@ class GfxRenderingAPI {
+     // G-Zero 64: picture effects (gGZ64.Bloom, Hdr, Vibrance, Style, Vignette, SpeedBlur, Cas), then FXAA
+     // and/or FSR 1.0 (EASU + RCAS) on srcFbId at full resolution. FSR upscales to outW x outH; the rest
+     // keep the source size. Returns the result's texture id, 0 = nothing applied.
++    // G-Zero 64: copies fbId's colour as "the scene" -- called when the HUD starts drawing, so the
++    // effects can light the 3D scene and leave the HUD as drawn.
++    virtual void Gz64SnapshotScene(int fbId) {
++    }
+     virtual uintptr_t Gz64ApplyFilters(int srcFbId, uint32_t outW, uint32_t outH, bool fxaa, bool fsr,
+                                        float sharpness) {
+         return 0;
+diff --git a/src/fast/backends/gfx_opengl.cpp b/src/fast/backends/gfx_opengl.cpp
+index 6a86ec1..cefd559 100644
+--- a/src/fast/backends/gfx_opengl.cpp
++++ b/src/fast/backends/gfx_opengl.cpp
+@@ -1821,9 +1821,10 @@ static const char* sGz64BloomDownFs = GZ64_FS_PRELUDE
+     "    for (int y = 0; y < 4; y++) {\n"
+     "        for (int x = 0; x < 4; x++) {\n"
+     "            vec3 c = F(base + ivec2(x, y));\n"
+-    "            float b = max(c.r, max(c.g, c.b));\n"
++    "            // Luminance, not the brightest channel: saturated neon stays coloured, not a white blob.\n"
++    "            float b = dot(c, vec3(0.2126, 0.7152, 0.0722));\n"
+     "            float k = clamp((b - uThreshold) / (1.0 - uThreshold + 1.0e-4), 0.0, 1.0);\n"
+-    "            sum += c * k * k;\n"
++    "            sum += c * (k * k * (3.0 - 2.0 * k));\n"
+     "        }\n"
+     "    }\n"
+     "    gdxFragColor = vec4(sum / 16.0, 1.0);\n"
+@@ -1865,8 +1866,18 @@ static const char* sGz64EffectsFs = GZ64_FS_PRELUDE
+     "uniform float uAoAmt;\n"
+     "uniform float uRaysAmt;\n"
+     "uniform float uDofAmt;\n"
++    "uniform sampler2D uScene;\n"
++    "uniform sampler2D uWide;\n"
++    "uniform vec2 uSceneSize;\n"
++    "uniform vec2 uWideSize;\n"
++    "uniform int uHasScene;\n"
++    "uniform float uWideAmt;\n"
+     GZ64_LINEAR_DEPTH
+     "vec3 F(ivec2 p) { return texelFetch(uTex, clamp(p, ivec2(0), ivec2(uInSize) - 1), 0).rgb; }\n"
++    "vec3 S(vec2 uv) {\n"
++    "    if (uHasScene == 0) return F(ivec2(uv * uInSize));\n"
++    "    return texelFetch(uScene, clamp(ivec2(uv * uSceneSize), ivec2(0), ivec2(uSceneSize) - 1), 0).rgb;\n"
++    "}\n"
+     "vec3 Up(sampler2D t, vec2 size, vec2 uv) {\n"
+     "    vec2 q = uv * size - 0.5;\n"
+     "    vec2 f = fract(q);\n"
+@@ -1886,17 +1897,21 @@ static const char* sGz64EffectsFs = GZ64_FS_PRELUDE
+     "void main() {\n"
+     "    ivec2 p = ivec2(gl_FragCoord.xy);\n"
+     "    vec2 uv = gl_FragCoord.xy / uInSize;\n"
+-    "    vec3 c = F(p);\n"
++    "    vec3 fin = F(p);\n"
++    "    // Everything works on the scene as it was before the HUD; HUD pixels are put back at the end.\n"
++    "    vec3 c = S(uv);\n"
++    "    vec3 dh = abs(fin - c);\n"
++    "    float hud = uHasScene != 0 ? smoothstep(0.02, 0.08, max(dh.r, max(dh.g, dh.b))) : 0.0;\n"
+     "    if (uSpeed > 0.0) {\n"
+-    "        // Radial blur toward the centre, only at the sides: the HUD lives near the top and bottom.\n"
++    "        // Radial blur toward the centre, stronger at the sides.\n"
+     "        vec2 d = uv - 0.5;\n"
+     "        float m = smoothstep(0.18, 0.55, length(d * vec2(1.0, 0.75)));\n"
+-    "        m *= smoothstep(0.0, 0.2, uv.y) * smoothstep(0.0, 0.2, 1.0 - uv.y);\n"
++    "        if (uHasScene == 0) m *= smoothstep(0.0, 0.2, uv.y) * smoothstep(0.0, 0.2, 1.0 - uv.y);\n"
+     "        float s = uSpeed * m;\n"
+     "        if (s > 0.001) {\n"
+     "            vec3 acc = c;\n"
+     "            for (int i = 1; i < 8; i++) {\n"
+-    "                acc += F(ivec2((uv - d * (float(i) * 0.014 * s)) * uInSize));\n"
++    "                acc += S(uv - d * (float(i) * 0.014 * s));\n"
+     "            }\n"
+     "            c = acc / 8.0;\n"
+     "        }\n"
+@@ -1912,6 +1927,7 @@ static const char* sGz64EffectsFs = GZ64_FS_PRELUDE
+     "    }\n"
+     "    if (uBloomAmt > 0.0) {\n"
+     "        c += Bloom(gl_FragCoord.xy) * uBloomAmt;\n"
++    "        if (uWideAmt > 0.0) c += Up(uWide, uWideSize, uv) * uWideAmt;\n"
+     "    }\n"
+     "    if (uRaysAmt > 0.0) {\n"
+     "        c += Up(uRays, uRaysSize, uv) * uRaysAmt;\n"
+@@ -1943,7 +1959,7 @@ static const char* sGz64EffectsFs = GZ64_FS_PRELUDE
+     "        float v = smoothstep(0.30, 0.85, length(uv - 0.5) * 1.25);\n"
+     "        c *= 1.0 - uVignette * 0.6 * v;\n"
+     "    }\n"
+-    "    gdxFragColor = vec4(clamp(c, 0.0, 1.0), 1.0);\n"
++    "    gdxFragColor = vec4(mix(clamp(c, 0.0, 1.0), fin, hud), 1.0);\n"
+     "}\n";
+ 
+ static const char* sGz64CasFs = GZ64_FS_PRELUDE
+@@ -2041,6 +2057,45 @@ static const char* sGz64DofDownFs = GZ64_FS_PRELUDE
+ extern "C" int gz64_dof_active(void);
+ 
+ int gGz64DepthSourceFb = -1;
++bool gGz64SceneValid = false;
++
++void GfxRenderingAPIOGL::Gz64SnapshotScene(int fbId) {
++    if (fbId <= 0 || fbId >= (int)mFrameBuffers.size()) {
++        return;
++    }
++    const FramebufferOGL& fb = mFrameBuffers[fbId];
++    if (mGz64SceneTex == 0 || mGz64SceneW != fb.width || mGz64SceneH != fb.height) {
++        if (mGz64SceneTex == 0) {
++            glGenTextures(1, &mGz64SceneTex);
++            glGenFramebuffers(1, &mGz64SceneFbo);
++        }
++        GLint prevTexture = 0;
++        glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTexture);
++        glBindTexture(GL_TEXTURE_2D, mGz64SceneTex);
++        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, fb.width, fb.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
++        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
++        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
++        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
++        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
++        glBindTexture(GL_TEXTURE_2D, (GLuint)prevTexture);
++        glBindFramebuffer(GL_FRAMEBUFFER, mGz64SceneFbo);
++        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mGz64SceneTex, 0);
++        mGz64SceneW = fb.width;
++        mGz64SceneH = fb.height;
++    }
++    if (mLastScissorEnabled != 0) {
++        glDisable(GL_SCISSOR_TEST);
++    }
++    glBindFramebuffer(GL_READ_FRAMEBUFFER, fb.fbo);
++    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mGz64SceneFbo);
++    glBlitFramebuffer(0, 0, (GLint)fb.width, (GLint)fb.height, 0, 0, (GLint)fb.width, (GLint)fb.height,
++                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
++    glBindFramebuffer(GL_FRAMEBUFFER, mFrameBuffers[mCurrentFrameBuffer].fbo);
++    if (mLastScissorEnabled != 0) {
++        glEnable(GL_SCISSOR_TEST);
++    }
++    gGz64SceneValid = true;
++}
+ // Speed blur strength from the player's speed and boost (port/decomp_port.c); 0 outside races.
+ extern "C" float gz64_speed_blur_amount(void);
+ 
+@@ -2093,6 +2148,11 @@ uintptr_t GfxRenderingAPIOGL::Gz64ApplyFilters(int srcFbId, uint32_t outW, uint3
+             fb = CreateFramebuffer();
+         }
+     }
++    for (int& fb : mGz64WideFb) {
++        if (fb < 0) {
++            fb = CreateFramebuffer();
++        }
++    }
+     const bool depthWanted = runEffects && (ao > 0.0f || rays > 0.0f || dof > 0.0f);
+     if (depthWanted) {
+         const char* depthSources[3] = { sGz64AoFs, sGz64RaysFs, sGz64DofDownFs };
+@@ -2161,10 +2221,14 @@ uintptr_t GfxRenderingAPIOGL::Gz64ApplyFilters(int srcFbId, uint32_t outW, uint3
+         curH = h;
+     };
+     if (runEffects) {
+-        const GLuint source = curTex;
++        // Bloom, rays, AO and DOF read the scene from before the HUD when there is one, so the HUD
++        // neither glows nor gets shaded (see Gz64SnapshotScene).
++        const bool hasScene = gGz64SceneValid && mGz64SceneTex != 0 && mGz64SceneW == curW && mGz64SceneH == curH;
++        const GLuint source = hasScene ? mGz64SceneTex : curTex;
+         const uint32_t srcW = curW, srcH = curH;
+         const uint32_t bloomW = (srcW + 3) / 4, bloomH = (srcH + 3) / 4;
+-        GLuint bloomTex = 0;
++        GLuint bloomTex = 0, wideTex = 0;
++        const uint32_t wideW = (bloomW + 3) / 4, wideH = (bloomH + 3) / 4;
+         if (runBloom) {
+             // Bright pass at quarter size, then blurred across and down (bloom FBs, not the ring).
+             auto bloomPass = [&](int fbIndex, GLuint program, GLuint input, auto&& setUniforms) {
+@@ -2181,7 +2245,7 @@ uintptr_t GfxRenderingAPIOGL::Gz64ApplyFilters(int srcFbId, uint32_t outW, uint3
+             };
+             GLuint t = bloomPass(0, mGz64FxPrograms[0], source, [&](GLuint program) {
+                 glUniform2f(glGetUniformLocation(program, "uInSize"), (float)srcW, (float)srcH);
+-                glUniform1f(glGetUniformLocation(program, "uThreshold"), 0.8f - 0.15f * bloom);
++                glUniform1f(glGetUniformLocation(program, "uThreshold"), 0.82f - 0.12f * bloom);
+             });
+             t = bloomPass(1, mGz64FxPrograms[1], t, [&](GLuint program) {
+                 glUniform2f(glGetUniformLocation(program, "uInSize"), (float)bloomW, (float)bloomH);
+@@ -2191,6 +2255,36 @@ uintptr_t GfxRenderingAPIOGL::Gz64ApplyFilters(int srcFbId, uint32_t outW, uint3
+                 glUniform2f(glGetUniformLocation(program, "uInSize"), (float)bloomW, (float)bloomH);
+                 glUniform2f(glGetUniformLocation(program, "uDir"), 0.0f, 1.0f);
+             });
++            // A second, 16x smaller level gives the soft halo around lights; the quarter one stays tight.
++            if (!mGz64DepthAttempted[2]) { // the DOF box downsample, also used here
++                mGz64DepthAttempted[2] = true;
++                mGz64DepthPrograms[2] = GdxCompilePostProgram(sGdxPostVsSource, sGz64DofDownFs);
++            }
++            if (mGz64DepthPrograms[2] != 0 && wideW >= 4 && wideH >= 4) {
++                auto widePass = [&](int fbIndex, GLuint program, GLuint input, auto&& setUniforms) {
++                    const int fb = mGz64WideFb[fbIndex];
++                    UpdateFramebufferParameters(fb, wideW, wideH, 1, true, true, false, false);
++                    glBindFramebuffer(GL_FRAMEBUFFER, mFrameBuffers[fb].fbo);
++                    glViewport(0, 0, (GLint)wideW, (GLint)wideH);
++                    glUseProgram(program);
++                    glBindTexture(GL_TEXTURE_2D, input);
++                    glUniform1i(glGetUniformLocation(program, "uTex"), 0);
++                    setUniforms(program);
++                    glDrawArrays(GL_TRIANGLES, 0, 3);
++                    return mFrameBuffers[fb].clrbuf;
++                };
++                GLuint w = widePass(0, mGz64DepthPrograms[2], bloomTex, [&](GLuint program) {
++                    glUniform2f(glGetUniformLocation(program, "uInSize"), (float)bloomW, (float)bloomH);
++                });
++                w = widePass(1, mGz64FxPrograms[1], w, [&](GLuint program) {
++                    glUniform2f(glGetUniformLocation(program, "uInSize"), (float)wideW, (float)wideH);
++                    glUniform2f(glGetUniformLocation(program, "uDir"), 0.5f, 0.0f);
++                });
++                wideTex = widePass(0, mGz64FxPrograms[1], w, [&](GLuint program) {
++                    glUniform2f(glGetUniformLocation(program, "uInSize"), (float)wideW, (float)wideH);
++                    glUniform2f(glGetUniformLocation(program, "uDir"), 0.0f, 0.5f);
++                });
++            }
+         }
+         // ── Depth: copied from the game framebuffer's depth renderbuffer into a texture ──
+         GLuint depthTex = 0, aoTex = 0, raysTex = 0, dofTex = 0;
+@@ -2276,9 +2370,10 @@ uintptr_t GfxRenderingAPIOGL::Gz64ApplyFilters(int srcFbId, uint32_t outW, uint3
+                 dofTex = blurPass(3, bloomW, bloomH, t, 0.0f, 1.0f);
+             }
+         }
+-        // Units 2-5 carry the depth results; nothing else in this backend binds them.
+-        const GLuint extra[4] = { depthTex, aoTex, raysTex, dofTex };
+-        for (int unit = 0; unit < 4; unit++) {
++        // Units 2-7 carry the depth results, the scene and the wide bloom; nothing else in this
++        // backend binds them.
++        const GLuint extra[6] = { depthTex, aoTex, raysTex, dofTex, hasScene ? mGz64SceneTex : 0u, wideTex };
++        for (int unit = 0; unit < 6; unit++) {
+             glActiveTexture(GL_TEXTURE2 + unit);
+             glBindTexture(GL_TEXTURE_2D, extra[unit] != 0 ? extra[unit] : source);
+         }
+@@ -2293,7 +2388,7 @@ uintptr_t GfxRenderingAPIOGL::Gz64ApplyFilters(int srcFbId, uint32_t outW, uint3
+             glUniform1i(glGetUniformLocation(program, "uBloom"), 1);
+             glUniform2f(glGetUniformLocation(program, "uInSize"), (float)srcW, (float)srcH);
+             glUniform2f(glGetUniformLocation(program, "uBloomSize"), (float)bloomW, (float)bloomH);
+-            glUniform1f(glGetUniformLocation(program, "uBloomAmt"), bloomTex != 0 ? bloom : 0.0f);
++            glUniform1f(glGetUniformLocation(program, "uBloomAmt"), bloomTex != 0 ? bloom * 0.8f : 0.0f);
+             glUniform1f(glGetUniformLocation(program, "uHdr"), hdr);
+             glUniform1f(glGetUniformLocation(program, "uVibrance"), vibrance);
+             glUniform1f(glGetUniformLocation(program, "uVignette"), vignette);
+@@ -2309,6 +2404,12 @@ uintptr_t GfxRenderingAPIOGL::Gz64ApplyFilters(int srcFbId, uint32_t outW, uint3
+             glUniform1f(glGetUniformLocation(program, "uAoAmt"), aoTex != 0 ? ao : 0.0f);
+             glUniform1f(glGetUniformLocation(program, "uRaysAmt"), raysTex != 0 ? rays * 1.2f : 0.0f);
+             glUniform1f(glGetUniformLocation(program, "uDofAmt"), dofTex != 0 ? dof : 0.0f);
++            glUniform1i(glGetUniformLocation(program, "uScene"), 6);
++            glUniform1i(glGetUniformLocation(program, "uWide"), 7);
++            glUniform2f(glGetUniformLocation(program, "uSceneSize"), (float)srcW, (float)srcH);
++            glUniform2f(glGetUniformLocation(program, "uWideSize"), (float)std::max(wideW, 1u), (float)std::max(wideH, 1u));
++            glUniform1i(glGetUniformLocation(program, "uHasScene"), hasScene ? 1 : 0);
++            glUniform1f(glGetUniformLocation(program, "uWideAmt"), wideTex != 0 ? bloom * 0.6f : 0.0f);
+         });
+         glActiveTexture(GL_TEXTURE1);
+         glBindTexture(GL_TEXTURE_2D, (GLuint)prevUnit1);
+@@ -2353,8 +2454,9 @@ uintptr_t GfxRenderingAPIOGL::Gz64ApplyFilters(int srcFbId, uint32_t outW, uint3
+         mLastScissorEnabled = 1;
+         glEnable(GL_SCISSOR_TEST);
+     }
+-    if (mLastActiveTexture >= 0 && mLastActiveTexture < SHADER_MAX_TEXTURES) {
+-        mLastBoundTextures[mLastActiveTexture] = 0;
++    // Units 0-7 may all have been rebound above: forget what the draw code thinks is on them.
++    for (GLuint& bound : mLastBoundTextures) {
++        bound = 0;
+     }
+     return (uintptr_t)curTex;
+ }
+diff --git a/src/fast/interpreter.cpp b/src/fast/interpreter.cpp
+index c8fb828..7d81cab 100644
+--- a/src/fast/interpreter.cpp
++++ b/src/fast/interpreter.cpp
+@@ -85,6 +85,12 @@ static bool sGz64Fxaa = false;
+ static bool sGz64Fsr = false;
+ static float sGz64FsrSharpness = 0.2f;
+ static bool sGz64Effects = false;
++// The HUD is drawn last and without depth: each depth-less draw that follows depth-tested ones may
++// be where it starts, so the scene is copied there (Gz64SnapshotScene, a few times per frame at
++// most) and the effects can tell the two apart. Reset in StartFrame.
++static bool sGz64SawDepth = false;
++static int sGz64Snapshots = 0;
++extern bool gGz64SceneValid;
+ // The framebuffer whose depth the G-Zero 64 effects read (gfx_opengl.cpp).
+ extern int gGz64DepthSourceFb;
+ 
+@@ -3390,6 +3396,16 @@ void Interpreter::GfxSpTri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx
+         depth_mask = false;
+         mGeometryDiagnostics.depthBypassTriangles++;
+     }
++    if (sGz64Effects && mRendersToFb && !mFbActive && sGz64Snapshots < 6) {
++        if (depth_test) {
++            sGz64SawDepth = true;
++        } else if (sGz64SawDepth) {
++            Flush();
++            mRapi->Gz64SnapshotScene(mGameFb);
++            sGz64SawDepth = false;
++            sGz64Snapshots++;
++        }
++    }
+     uint8_t depth_test_and_mask = (depth_test ? 1 : 0) | (depth_mask ? 2 : 0);
+     if (depth_test_and_mask != mRenderingState.depth_test_and_mask) {
+         Flush();
+@@ -7816,6 +7832,9 @@ void Interpreter::StartFrame() {
+     sGz64Fxaa = CVarGetInteger("gGZ64.Fxaa", 0) != 0;
+     sGz64Fsr = CVarGetInteger("gGZ64.Fsr", 0) != 0;
+     sGz64FsrSharpness = CVarGetFloat("gGZ64.FsrSharpness", 0.2f);
++    sGz64SawDepth = false;
++    sGz64Snapshots = 0;
++    gGz64SceneValid = false;
+     // Picture effects (Gz64ApplyFilters reads their strengths itself).
+     sGz64Effects = CVarGetFloat("gGZ64.Bloom", 0.0f) > 0.0f || CVarGetFloat("gGZ64.Hdr", 0.0f) > 0.0f ||
+                    CVarGetFloat("gGZ64.Vibrance", 0.0f) > 0.0f || CVarGetInteger("gGZ64.Style", 0) != 0 ||
