@@ -36,24 +36,37 @@ aunque funciona en cualquier dispositivo compatible.
 
 - **Juego nativo**, sin emulación, a 60 FPS.
 - **Kit de expansión**: editor de circuitos (*Course Edit*) y las copas extra del disco.
-- **Pantalla panorámica 16:9** real, con el marcador ajustado a los bordes.
+- **Pantalla panorámica 16:9** real, con el marcador ajustado a los bordes, o 4:3 original.
 - **Sin bordes negros**: la imagen ocupa toda la pantalla.
-- **Imagen más fluida**: interpolación de fotogramas en pantallas de más de 60 Hz.
-- **Opciones gráficas**: resolución interna, antialiasing, filtrado de texturas y distancia de dibujado.
-- **Fantasmas**: guarda, importa y exporta tus vueltas fantasma.
-- **Modo foto**: oculta el marcador con la carrera en pausa.
-- **Packs de texturas**: copia packs `.o2r` en la carpeta `mods/` de la app.
+- **Opciones gráficas**: resolución interna, FSR 1.0, FXAA, MSAA, filtrado de texturas y distancia
+  de dibujado.
+- **Shaders y texturas**:
+  - Shaders de RetroArch elegidos para ir fluidos en portátiles: líneas de escaneo, rejilla, nitidez,
+    suavizado SMAA, colores vivos y CRT retro.
+  - Escalado de texturas **xBRZ** (2x, 3x o 4x).
+  - **Packs de texturas HD de emulador** (`.htc` de GLideN64): si pones el pack junto a los archivos
+    del juego, el lanzador lo copia y se activa solo.
+- **Modo Práctica mejorado**: diferencia por vuelta y reglas de carrera única (vueltas, rivales de la
+  CPU y rival al azar).
+- **Modo foto**: pausa la carrera con Start, oculta el marcador y mueve la cámara libremente.
+- **Fantasmas**: el fantasma de tus récords se guarda automáticamente.
+- **Logros** propios, con aviso en pantalla al desbloquearlos.
+- **Contador de FPS** opcional.
 - **Lanzador propio** con Jugar, Ajustes y Cambiar carpeta, e inicio automático opcional.
-- **Menú rápido** dentro del juego, con el botón Atrás o con Select + Start: Continuar, Salir y
-  opciones del juego.
-- **Mandos** compatibles con Android (Bluetooth o integrados).
+- **Menú rápido** dentro del juego con el botón Atrás: imagen, sonido, mando y controles táctiles,
+  con **Continuar** y **Salir**. El juego queda en pausa mientras está abierto.
+- **Mandos** compatibles con Android (Bluetooth o integrados), con un esquema **de carreras**:
+  cruceta o stick para girar, R2 acelera, A turbo, gatillo izquierdo frena, L1/R1 derrapes.
+- **Controles táctiles** con editor para moverlos y cambiar su tamaño, cuadrícula y preajustes. En
+  carrera cambian a un esquema de flechas con aceleración automática.
+- Todo **en español** (e inglés si el sistema está en inglés).
 
 ## Requisitos
 
 - Android 11 o superior, de 64 bits (arm64).
 - GPU con OpenGL ES 3.0 (cualquier Adreno, Mali o PowerVR moderna).
 - Unos 300 MB libres.
-- Mando recomendado (los controles táctiles llegarán más adelante).
+- Mando recomendado; también se puede jugar con los controles táctiles.
 
 ## Archivos necesarios
 
@@ -64,6 +77,7 @@ Tienen que ser copias tuyas, sacadas de tus propios cartuchos y discos:
 | **ROM del juego** | El cartucho americano. Vale `.z64`, `.v64` o `.n64`. La europea también funciona; la japonesa no. |
 | Disco del **kit de expansión traducido** (`.ndd`) | El disco de expansión con la traducción al inglés de Zoinkity, adaptada por LuigiBlood. |
 | **IPL de la unidad de disco** | El chip de arranque de la unidad de disco (japonesa o prototipo americano). |
+| Pack de texturas HD (`.htc`, opcional) | Un pack de GLideN64, por ejemplo `FZEROX_HIRESTEXTURES.htc`. |
 
 No hace falta renombrarlos: el lanzador los reconoce por su contenido.
 
@@ -71,20 +85,24 @@ No hace falta renombrarlos: el lanzador los reconoce por su contenido.
 
 1. Descarga el archivo `G-Zero-64.apk` de la última versión.
 2. Ábrelo en tu dispositivo y permite instalar apps de origen desconocido si te lo pide.
-3. Copia los tres archivos del juego a una misma carpeta del almacenamiento.
+3. Copia los tres archivos del juego (y el pack HD, si tienes uno) a una misma carpeta del
+   almacenamiento.
 4. Abre **G-Zero 64**, pulsa **Elegir carpeta** y selecciona esa carpeta. Los archivos se copian
    dentro de la app; si falta alguno, te dice cuál.
 5. Pulsa **Jugar**. La primera vez prepara los gráficos y tarda un poco más.
 
 Para actualizar, instala la nueva APK encima de la anterior: tus partidas se conservan.
 
-Las partidas, la configuración y los packs de texturas están en
+Las partidas, la configuración y el pack de texturas HD están en
 `Android/data/com.gzero64/files/`.
 
 ## Controles
 
-- **Mando**: se configura solo. Puedes cambiar los botones en el menú rápido → *Opciones del juego*.
-- **Atrás** o **Select + Start**: abre el menú rápido.
+- **Mando**: se configura solo. En carrera usa el esquema de carreras: cruceta o stick para girar, R2
+  acelera, A turbo, gatillo izquierdo frena, L1/R1 derrapes, Y mira atrás y X cambia la cámara. Se
+  puede desactivar en el menú rápido → *Mando y táctil*.
+- **Táctil**: los controles aparecen solos si no hay mando. Se editan desde el menú rápido.
+- **Atrás**: abre el menú rápido. En él, L1/L2 van a la lista de secciones y R1/R2 a las opciones.
 - **Continuar** (verde) vuelve a la carrera y **Salir** (rojo) cierra el juego.
 
 ## Compilar la APK
@@ -118,7 +136,9 @@ El README original de G-Diffuser, con toda su información técnica, está en
 
 El código de G-Diffuser y de G-Zero 64 se publica bajo la [licencia MIT](LICENSE). Los submódulos y
 componentes incluidos mantienen sus propias licencias: ver [`LICENSES/`](LICENSES/) y
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). La APK de Android incluye el escalador xBRZ
+(GPL v3), así que la APK en conjunto se distribuye bajo la GPL v3; su código completo es este
+repositorio.
 
 Proyecto de fans no oficial, sin relación con los titulares de los derechos del juego original ni
 respaldado por ellos. Las marcas pertenecen a sus propietarios. G-Zero 64 no contiene ROM, disco, IPL ni ningún otro dato del juego: cada
